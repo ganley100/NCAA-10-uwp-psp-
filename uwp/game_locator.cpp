@@ -78,7 +78,9 @@ std::wstring file_name(const std::wstring &path) {
 } // namespace
 
 std::vector<SearchPlace> search_places(const std::string &installed, const std::string &local) {
-    std::vector<SearchPlace> places{{"Development Files", L"D:\\DevelopmentFiles"}, {"LocalState", wide(local)}};
+    std::vector<SearchPlace> places{{"Development Files (D:\\DevelopmentFiles)", L"D:\\DevelopmentFiles"},
+                                    {"the D: drive", L"D:"},
+                                    {"LocalState", wide(local)}};
     for (wchar_t drive = L'E'; drive <= L'Z'; ++drive)
         places.push_back({std::string("USB drive ") + static_cast<char>(drive) + ":", std::wstring(1, drive) + L":"});
     places.push_back({"the app package", wide(installed) + L"\\game"});

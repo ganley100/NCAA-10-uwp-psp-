@@ -88,17 +88,18 @@ Copy your NCAA Football 10 game file, as **.iso**, **.cso** (CISO v1) or
 The app checks them in this order and uses the first file whose disc ID is
 ULUS10440:
 
-1. **Development Files** (the default): Device Portal > File explorer >
-   *DevelopmentFiles*, either directly or in a subfolder such as
-   `DevelopmentFiles\NCAA10\`.
-2. **LocalState**: Device Portal > File explorer > *LocalAppData* >
+1. **Development Files**, `D:\DevelopmentFiles` (the default): Device Portal >
+   File explorer > *DevelopmentFiles*, either directly or in a subfolder such
+   as `DevelopmentFiles\NCAA10\`.
+2. **The D: drive**: the root of `D:` or one folder down.
+3. **LocalState**: Device Portal > File explorer > *LocalAppData* >
    the app's package > *LocalState*.
-3. **A USB drive**: the root of the drive or one folder down.
+4. **A USB drive**: the root of the drive or one folder down.
 
 The file is read in place, nothing is copied or extracted. The start screen
 shows your cover with either the message *"Put your NCAA Football 10 PSP game
-file (.iso, .cso or .chd) in Development Files (the default), in LocalState,
-or on a USB drive, then press A"* or which file it found; press **A** to
+file (.iso, .cso or .chd) in Development Files (D:\DevelopmentFiles, the
+default), on the D: drive, in LocalState, or on a USB drive, then press A"* or which file it found; press **A** to
 play (or to search again). Files that are a different game or unreadable are
 listed under the message.
 

@@ -24,8 +24,8 @@ struct GameImage {
     std::vector<IsoEntry> entries;
 };
 
-// Development Files first (the default place), then LocalState, USB drives
-// and finally a disc packaged with -PackDisc.
+// Development Files (D:\DevelopmentFiles) first, the default place, then the
+// D: drive, LocalState, USB drives and finally a disc packaged with -PackDisc.
 std::vector<SearchPlace> search_places(const std::string &installed, const std::string &local);
 
 // First image in `places` (each folder and its direct subfolders) whose disc
