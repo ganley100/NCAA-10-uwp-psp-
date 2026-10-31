@@ -36,7 +36,8 @@ Two variants:
 1. Make this repository **private** (Settings > General > Danger Zone > Change
    visibility). The workflow refuses the game build in a public repository,
    because artifacts of public repositories can be downloaded by anyone.
-2. Create `ncaa10-input.zip` containing your NCAA Football 10 `.iso` and your
+2. Create `ncaa10-input.zip` containing your NCAA Football 10 `.iso` (needed at
+   build time to verify the disc and translate its audio programs) and your
    decrypted `EBOOT.BIN` (SHA-256 `2b743dc6...94f6`, see
    [docs/NCAA10.md](NCAA10.md#verified-game-identity); PPSSPP's developer tools
    can dump it). Each release asset must be under 2 GB. Optionally add a
@@ -79,6 +80,28 @@ cd NCAA-10-uwp-psp-
 To install on a Windows PC instead, double-click `PSPRecompUWP.cer`, install it
 to *Local Machine > Trusted People*, then double-click the `.msix`.
 
+## Start screen and importing your disc
+
+The app opens on a start screen (your cover when the package was built with
+one) with three choices:
+
+- **Play** starts the game once a disc is available.
+- **Choose ISO file** opens the system file picker; pick your `.iso`.
+- **Find ISO on USB drive** lists the `.iso` files in the top two folder
+  levels of every connected USB drive.
+
+Importing copies the image into the app's storage (`LocalState\game\disc.iso`),
+extracts it to `LocalState\game\disc` and checks the disc ID (ULUS10440 for
+NCAA Football 10). Allow several minutes and about twice the ISO size in free
+space. You only import once; later launches go straight to **Play**. The USB
+drive must use exFAT or NTFS for images over 4 GB (NCAA's ISO is smaller, so
+FAT32 also works).
+
+The package itself carries the game code and your decrypted `EBOOT.BIN` but
+not the disc, which keeps it small. Build with `-PackDisc` (or the workflow's
+*pack_disc* option) to put the disc in the package instead and skip the
+import.
+
 ## Controls
 
 | Xbox controller | PSP |
@@ -95,5 +118,5 @@ Through Device Portal's **File explorer**, under
 
 - `pspweb.log` is the log of the last run. Read it when something goes wrong.
 - `ms0\` holds your saves.
-- `game\` is optional. A `game\EBOOT.BIN` plus `game\disc\` placed here
-  overrides the game packaged in the `.msix`.
+- `game\` holds the imported disc (`disc.iso` and `disc\`). A
+  `game\EBOOT.BIN` placed here overrides the packaged executable.

@@ -26,9 +26,21 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square310x310Logo="Assets\Square310x310Logo.png" />
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
+      <Extensions>
+        <!-- Lets the start screen list .iso files on USB drives (removableStorage). -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="pspdiscimage">
+            <uap:DisplayName>PSP disc image</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.iso</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
   <Capabilities>
+    <uap:Capability Name="removableStorage" />
     <Capability Name="internetClient" />
   </Capabilities>
 </Package>

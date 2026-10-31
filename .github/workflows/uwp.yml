@@ -27,6 +27,10 @@ on:
       opt:
         description: 'Optimization level for the generated game code (0-3)'
         default: '1'
+      pack_disc:
+        description: 'Put the disc in the package (about 2 GB) instead of importing the ISO on the console'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -79,6 +83,7 @@ jobs:
             $extra += @('-Iso', $env:ISO)
             if ($env:EBOOT) { $extra += @('-Eboot', $env:EBOOT) }
             if ($env:COVER) { $extra += @('-Cover', $env:COVER) }
+            if ('${{ inputs.pack_disc }}' -eq 'true') { $extra += '-PackDisc' }
           }
           ./scripts/build_uwp.ps1 -Game $env:GAME -Opt ${{ inputs.opt || '1' }} -Version "1.0.${{ github.run_number }}.0" @extra
 

@@ -16,6 +16,7 @@ set(PSPWEB_UWP_SDL2_LIB "" CACHE FILEPATH "SDL2 import library built for UWP")
 set(PSPWEB_UWP_ANGLE_INCLUDE "" CACHE PATH "ANGLE include directory (EGL/, GLES2/, GLES3/, KHR/)")
 set(PSPWEB_UWP_EGL_LIB "" CACHE FILEPATH "ANGLE libEGL import library for UWP")
 set(PSPWEB_UWP_GLES_LIB "" CACHE FILEPATH "ANGLE libGLESv2 import library for UWP")
+set(PSPWEB_UWP_CPPWINRT_INCLUDE "" CACHE PATH "Windows SDK cppwinrt include directory (optional)")
 foreach(var PSPWEB_UWP_SDL2_INCLUDE PSPWEB_UWP_SDL2_LIB PSPWEB_UWP_ANGLE_INCLUDE PSPWEB_UWP_EGL_LIB PSPWEB_UWP_GLES_LIB)
     if(NOT EXISTS "${${var}}")
         message(FATAL_ERROR "${var} is not set or missing: '${${var}}'")
@@ -55,7 +56,12 @@ function(pspweb_uwp_finish)
     set_source_files_properties("${profile_dir}/host/main.cpp" TARGET_DIRECTORY pspweb
         PROPERTIES COMPILE_DEFINITIONS "main=pspweb_main"
                    COMPILE_OPTIONS "/FI${PSPWEB_UWP_DIR}/uwp_compat.hpp")
-    target_sources(pspweb PRIVATE "${PSPWEB_UWP_DIR}/uwp_main.cpp")
+    target_sources(pspweb PRIVATE "${PSPWEB_UWP_DIR}/uwp_main.cpp" "${PSPWEB_UWP_DIR}/launcher.cpp"
+        "${PSPWEB_UWP_DIR}/iso9660.cpp")
+    # The launcher's file picker and USB scan use C++/WinRT from the Windows SDK.
+    if(PSPWEB_UWP_CPPWINRT_INCLUDE)
+        target_include_directories(pspweb PRIVATE "${PSPWEB_UWP_CPPWINRT_INCLUDE}")
+    endif()
     target_compile_definitions(pspweb PRIVATE PSPWEB_UWP=1)
     # Plain ISO C++ (no C++/CX); the WinRT parts live inside SDL.
     set_target_properties(pspweb PROPERTIES VS_WINRT_COMPONENT OFF WIN32_EXECUTABLE ON)

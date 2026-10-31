@@ -17,6 +17,7 @@ param(
     [string]$Iso = "",
     [string]$Eboot = "",
     [string]$Cover = "",
+    [switch]$PackDisc,
     [ValidateRange(0, 3)][int]$Opt = 1,
     [string]$Version = "1.0.0.0",
     [int]$MsvcJobs = 2,
@@ -131,7 +132,8 @@ if ($Game -eq "smoke") {
         Copy-Item $packaged $Target
     }
     Invoke-Checked $Python @("-I", (Join-Path $Root "scripts/verify_ncaa10.py"), $GameRoot)
-    Invoke-Checked $Python @("-I", (Join-Path $Root "scripts/prepare_ncaa_disc.py"), $Iso, $Disc)
+    # The raw image only travels in -PackDisc packages; otherwise the console imports it.
+    if ($PackDisc) { Invoke-Checked $Python @("-I", (Join-Path $Root "scripts/prepare_ncaa_disc.py"), $Iso, $Disc) }
     Write-Host "== MIPS to C++"
     New-Item -ItemType Directory -Force -Path $Generated | Out-Null
     Invoke-Checked $Recomp @($Target, "--auto", $Generated, "0x08804000", "0x4000")
@@ -150,7 +152,8 @@ Invoke-Checked cmake @("-S", $Framework, "-B", $Cmake, "-G", "Visual Studio 17 2
     "-DPSPRECOMP_GENERATED_OPT_LEVEL=$Opt", "-DPSPRECOMP_MSVC_MP_JOBS=$MsvcJobs",
     "-DPSPWEB_UWP_SDL2_INCLUDE=$(Join-Path $SdlDir 'include')", "-DPSPWEB_UWP_SDL2_LIB=$($SdlLib.FullName)",
     "-DPSPWEB_UWP_ANGLE_INCLUDE=$AngleInclude", "-DPSPWEB_UWP_EGL_LIB=$($EglLib.FullName)",
-    "-DPSPWEB_UWP_GLES_LIB=$($GlesLib.FullName)")
+    "-DPSPWEB_UWP_GLES_LIB=$($GlesLib.FullName)",
+    "-DPSPWEB_UWP_CPPWINRT_INCLUDE=${env:ProgramFiles(x86)}\Windows Kits\10\Include\$Sdk\cppwinrt")
 Write-Host "== building (generated code can take a long time)"
 Invoke-Checked cmake @("--build", $Cmake, "--config", "Release", "--target", "pspweb", "--", "/nologo", "/v:minimal")
 $Exe = Get-ChildItem $Cmake -Recurse -Filter "pspweb_$Game.exe" | Where-Object { $_.FullName -match 'Release' -and $_.FullName -notmatch 'AppX' } | Select-Object -First 1
@@ -164,14 +167,20 @@ New-Item -ItemType Directory -Force -Path (Join-Path $Layout "game") | Out-Null
 Copy-Item $Exe.FullName, $SdlDll $Layout
 $AngleDlls | ForEach-Object { Copy-Item $_.FullName $Layout }
 Copy-Item -Recurse (Join-Path $Root "uwp/Assets") (Join-Path $Layout "Assets")
+Invoke-Checked $Python @("-m", "pip", "install", "--quiet", "pillow")
+$LauncherArgs = @((Join-Path $Root "uwp/make_launcher.py"), (Join-Path $Layout "Assets"))
 if ($Cover) {
     Write-Host "== tiles from $Cover"
-    Invoke-Checked $Python @("-m", "pip", "install", "--quiet", "pillow")
     Invoke-Checked $Python @((Join-Path $Root "uwp/make_cover_assets.py"), $Cover, (Join-Path $Layout "Assets"))
+    $LauncherArgs += @("--cover", $Cover)
 }
+Write-Host "== start screen images"
+Invoke-Checked $Python $LauncherArgs
 Copy-Item (Join-Path $GameRoot "EBOOT.BIN") (Join-Path $Layout "game/EBOOT.BIN")
-Copy-Item -Recurse (Join-Path $GameRoot "disc") (Join-Path $Layout "game/disc")
-if (-not (Test-Path (Join-Path $Layout "game/disc"))) { New-Item -ItemType Directory (Join-Path $Layout "game/disc") | Out-Null }
+if ($PackDisc) {
+    Write-Host "== packing the disc into the package"
+    Copy-Item -Recurse (Join-Path $GameRoot "disc") (Join-Path $Layout "game/disc")
+}
 
 # The UWP C++ runtime framework package (vcruntime140_app etc.).
 $VcLibsAppx = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft SDKs\Windows Kits\10\ExtensionSDKs\Microsoft.VCLibs" -Recurse `
