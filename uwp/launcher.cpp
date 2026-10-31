@@ -254,7 +254,7 @@ bool run_launcher(const LauncherConfig &config, GameImage &game) {
     if (!have_ui) std::fprintf(stderr, "[launcher] SDL unavailable: %s\n", SDL_GetError());
     const auto places = search_places(config.installed, config.local);
     const std::string instructions =
-        "Put your " + config.title + " PSP game file (.iso, .cso or .chd) in Development Files "
+        "Put your " + config.title + " game file (.iso, .cso or .chd) in Development Files "
         "(D:\\DevelopmentFiles, the default), on the D: drive, in LocalState, or on a USB drive, "
         "then press A.";
     std::error_code ignored;

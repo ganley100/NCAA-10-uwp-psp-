@@ -97,7 +97,7 @@ ULUS10440:
 4. **A USB drive**: the root of the drive or one folder down.
 
 The file is read in place, nothing is copied or extracted. The start screen
-shows your cover with either the message *"Put your NCAA Football 10 PSP game
+shows your cover with either the message *"Put your NCAA 10 PSP game
 file (.iso, .cso or .chd) in Development Files (D:\DevelopmentFiles, the
 default), on the D: drive, in LocalState, or on a USB drive, then press A"* or which file it found; press **A** to
 play (or to search again). Files that are a different game or unreadable are

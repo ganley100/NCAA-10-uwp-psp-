@@ -31,11 +31,11 @@ int pspweb_main(int argc, char **argv);
 namespace {
 
 #ifdef PSPWEB_NCAA10
-constexpr const char *kTitle = "NCAA Football 10";
+constexpr const char *kTitle = "NCAA 10 PSP";
 constexpr const char *kDiscId = "ULUS10440";
 constexpr bool kNeedsDisc = true;
 #else
-constexpr const char *kTitle = "PSP Recomp UWP";
+constexpr const char *kTitle = "NCAA 10 PSP (test)";
 constexpr const char *kDiscId = "";
 constexpr bool kNeedsDisc = false; // the smoke package's synthetic program reads no disc
 #endif

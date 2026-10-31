@@ -206,7 +206,7 @@ if ($VcLibsAppx) {
 Write-Host "== VCLibs framework $VcLibsVersion"
 
 $Publisher = "CN=PSPRecompUWP"
-$Display = if ($Game -eq "ncaa10") { "NCAA Football 10" } else { "PSP Recomp UWP smoke test" }
+$Display = if ($Game -eq "ncaa10") { "NCAA 10 PSP" } else { "NCAA 10 PSP (test)" }
 $Identity = if ($Game -eq "ncaa10") { "PSPRecomp.NCAAFootball10" } else { "PSPRecomp.UWPSmoke" }
 (Get-Content -Raw (Join-Path $Root "uwp/AppxManifest.xml.in")) `
     -replace '@NAME@', $Identity -replace '@VERSION@', $Version -replace '@PUBLISHER@', $Publisher `
