@@ -11,12 +11,14 @@ ROOT_FILES = {
     'ENGINEERING_LOG.md', 'HANDOFF.md', 'OTHER_RECOMPS.md',
     'GITHUB_READY.md', 'THIRD_PARTY_NOTICES.md',
 }
-SOURCE_DIRS = ('docs', 'patches', 'profile', 'scripts', '.github')
+SOURCE_DIRS = ('docs', 'patches', 'profile', 'scripts', '.github', 'uwp')
 BLOCKED_PARTS = {'games', 'build', 'PSPRecomp', 'tools', 'generated',
                  '__pycache__', '.git', '.codex', '.agents', '.claude', 'ms0', 'memstick'}
 TEXT_EXTENSIONS = {'.md', '.txt', '.cpp', '.hpp', '.h', '.c', '.py', '.mjs',
                    '.js', '.html', '.css', '.sh', '.ps1', '.patch', '.yml', '.yaml', '.json'}
 SPECIAL_NAMES = {'CMakeLists.txt', 'COPYING.LGPLv2.1', 'SOURCE_COMMIT', 'LICENSE'}
+# UWP packaging sources: CMake glue, the manifest template and generic tile art.
+UWP_EXTENSIONS = {'.cmake', '.in', '.png'}
 DEMO_FILES = {'docs/media/demo.webp', 'docs/media/demo.mp4'}
 SECRET_PATTERNS = {
     'private-key header': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
@@ -30,6 +32,8 @@ def allowed(relative):
     if any(part in BLOCKED_PARTS for part in path.parts):
         return False
     if relative in ROOT_FILES or relative in DEMO_FILES:
+        return True
+    if path.parts[0] == 'uwp' and path.suffix.lower() in UWP_EXTENSIONS:
         return True
     return (path.parts[0] in SOURCE_DIRS and
             (path.suffix.lower() in TEXT_EXTENSIONS or path.name in SPECIAL_NAMES))
@@ -57,7 +61,7 @@ def audit(root, files):
         total += size
         if size >= 95 * 1024 * 1024:
             errors.append({'file': relative, 'reason': 'oversized file'})
-        if relative not in DEMO_FILES:
+        if relative not in DEMO_FILES and not (relative.startswith('uwp/') and relative.endswith('.png')):
             try:
                 text = path.read_text(encoding='utf-8')
             except UnicodeError:
