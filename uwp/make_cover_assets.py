@@ -8,7 +8,7 @@ replacing the default icons in uwp/Assets.
 """
 import sys
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageStat
+from PIL import Image
 
 
 def square(cover, px):
@@ -16,21 +16,11 @@ def square(cover, px):
 
 
 def wide(cover, w, h):
-    # Whole cover centred on its own edge colour, blended in with soft side fades.
-    art = cover.resize((h, h), Image.LANCZOS)
-    edge = max(1, h // 20)
-    sides = [art.crop((0, 0, edge, h)), art.crop((h - edge, 0, h, h))]
-    colour = tuple(sum(ImageStat.Stat(side).mean[c] for side in sides) / 2 for c in range(3))
-    bg = Image.new('RGB', (w, h), tuple(int(c) for c in colour))
-    fade = h // 6
-    mask = Image.new('L', (h, h), 255)
-    draw = ImageDraw.Draw(mask)
-    for i in range(fade):
-        a = int(255 * (i / fade) ** 1.5)
-        draw.line([(i, 0), (i, h)], fill=a)
-        draw.line([(h - 1 - i, 0), (h - 1 - i, h)], fill=a)
-    bg.paste(art, ((w - h) // 2, 0), mask)
-    return bg
+    # Edge to edge: a full-width band from near the top of the cover (the
+    # player's helmet and shoulders on box art), no letterboxing.
+    art = cover.resize((w, w), Image.LANCZOS)
+    top = min(int(w * 0.04), w - h)
+    return art.crop((0, top, w, top + h))
 
 
 def main():
