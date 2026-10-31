@@ -24,7 +24,10 @@ endforeach()
 
 # Generated AOT units are very large; UTF-8 sources throughout.
 add_compile_options(/bigobj /utf-8)
-add_compile_definitions(_CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
+add_compile_definitions(_CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
+    # ANGLE.WindowsStore's GLES 3 headers only declare entry points with this,
+    # and its EGL headers predate EGL_KHR_no_config_context.
+    GL_GLEXT_PROTOTYPES "EGL_NO_CONFIG_KHR=((EGLConfig)0)")
 
 add_library(EGL UNKNOWN IMPORTED GLOBAL)
 set_target_properties(EGL PROPERTIES IMPORTED_LOCATION "${PSPWEB_UWP_EGL_LIB}"
@@ -50,7 +53,8 @@ function(pspweb_uwp_finish)
         set_target_properties(pspweb PROPERTIES COMPILE_OPTIONS "${options}")
     endif()
     set_source_files_properties("${profile_dir}/host/main.cpp" TARGET_DIRECTORY pspweb
-        PROPERTIES COMPILE_DEFINITIONS "main=pspweb_main")
+        PROPERTIES COMPILE_DEFINITIONS "main=pspweb_main"
+                   COMPILE_OPTIONS "/FI${PSPWEB_UWP_DIR}/uwp_compat.hpp")
     target_sources(pspweb PRIVATE "${PSPWEB_UWP_DIR}/uwp_main.cpp")
     target_compile_definitions(pspweb PRIVATE PSPWEB_UWP=1)
     # Plain ISO C++ (no C++/CX); the WinRT parts live inside SDL.
