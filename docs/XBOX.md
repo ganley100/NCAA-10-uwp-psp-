@@ -44,6 +44,9 @@ Two variants:
    can dump it). Each release asset must be under 2 GB. Optionally add a
    square `cover.png` (or `cover.jpg`) to use your box art for the tiles.
 3. Create a release with the tag `game-input` and attach `ncaa10-input.zip`.
+   You can also attach your square `cover.png` to that release on its own;
+   every package built in the private repository, the game-free test one
+   included, then uses it for the tiles and start screen.
 4. Actions > **Xbox UWP package** > Run workflow > game `ncaa10`.
 5. Download the `xbox-uwp-ncaa10` artifact when the run finishes.
 

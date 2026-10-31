@@ -109,14 +109,29 @@ jobs:
           if ($cover) { "COVER=$($cover.FullName)" | Out-File -Append $env:GITHUB_ENV }
           Remove-Item build/input/ncaa10-input.zip
 
+      - name: Fetch your cover (private release asset, any package)
+        # A cover.png attached to the game-input release is used for the tiles
+        # and start screen of every package, the game-free one included. Box
+        # art stays private: this only runs in a private repository.
+        if: github.event.repository.private == true && env.COVER == ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force build/cover | Out-Null
+          gh release download game-input --repo "${{ github.repository }}" --pattern 'cover.*' --dir build/cover 2>$null
+          $cover = Get-ChildItem build/cover -Include cover.png, cover.jpg -Recurse | Select-Object -First 1
+          if ($cover) { "COVER=$($cover.FullName)" | Out-File -Append $env:GITHUB_ENV } else { Write-Host "no cover.png in the game-input release; using the generic icons" }
+          exit 0
+
       - name: Build and package
         shell: pwsh
         run: |
           $extra = @()
+          if ($env:COVER) { $extra += @('-Cover', $env:COVER) }
           if ($env:GAME -eq 'ncaa10') {
             $extra += @('-Iso', $env:ISO)
             if ($env:EBOOT) { $extra += @('-Eboot', $env:EBOOT) }
-            if ($env:COVER) { $extra += @('-Cover', $env:COVER) }
             if ('${{ inputs.pack_disc }}' -eq 'true') { $extra += '-PackDisc' }
           }
           ./scripts/build_uwp.ps1 -Game $env:GAME -Opt ${{ inputs.opt || '1' }} -Version "1.0.${{ github.run_number }}.0" @extra
