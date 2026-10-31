@@ -4,6 +4,7 @@
 #pragma once
 
 #include "psprecomp/common.hpp"
-#include "../profile/host/sdl_frontend.hpp"
 
+// main.cpp includes sdl_frontend.hpp itself; only the short name is missing.
+namespace pspweb::sdl {}
 namespace sdl = pspweb::sdl;
