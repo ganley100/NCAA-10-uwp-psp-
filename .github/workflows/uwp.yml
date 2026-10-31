@@ -1,7 +1,8 @@
 name: Xbox UWP package
 
-# smoke  - game-free package (synthetic PSP program). Runs on every push and
-#          proves the UWP toolchain, packaging, signing and Xbox install path.
+# launcher - "NCAA 10 PSP" start screen without the game code (no game data).
+#            Built on every push; finds your game file but cannot play it.
+# smoke    - game-free test package (synthetic PSP program).
 # ncaa10 - NCAA Football 10 from YOUR files. Only runs in a PRIVATE repository:
 #          upload ncaa10-input.zip (your .iso + decrypted EBOOT.BIN) to a
 #          release tagged "game-input" first. See docs/XBOX.md.
@@ -20,10 +21,10 @@ on:
   workflow_dispatch:
     inputs:
       game:
-        description: 'smoke (no game data) or ncaa10 (private repo + game-input release)'
+        description: 'launcher (no game code), smoke (test) or ncaa10 (private repo + game-input release)'
         type: choice
-        options: [smoke, ncaa10]
-        default: smoke
+        options: [launcher, smoke, ncaa10]
+        default: launcher
       opt:
         description: 'Optimization level for the generated game code (0-3)'
         default: '1'
@@ -74,7 +75,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 360
     env:
-      GAME: ${{ inputs.game || 'smoke' }}
+      GAME: ${{ inputs.game || 'launcher' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

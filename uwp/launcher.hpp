@@ -14,6 +14,7 @@ struct LauncherConfig {
     std::string title;
     std::string disc_id;   // required DISC_ID, empty for any PSP disc
     bool needs_disc{true}; // false for the game-free smoke package
+    std::string play_blocked; // when set, Play shows this instead of starting (launcher-only builds)
 };
 
 // Decrypted executable: LocalState\game\EBOOT.BIN, else the packaged one.

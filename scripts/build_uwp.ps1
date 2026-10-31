@@ -4,6 +4,11 @@
 #       Game-free smoke package (synthetic PSP program): proves the toolchain,
 #       packaging, signing and Xbox install path without any game data.
 #
+#   scripts/build_uwp.ps1 -Game launcher
+#       "NCAA 10 PSP" start screen without the game code: finds your game file
+#       (Development Files, D:, LocalState, USB) but cannot play it.  Same
+#       package identity as the ncaa10 build, which later installs over it.
+#
 #   scripts/build_uwp.ps1 -Game ncaa10 -Iso C:\path\NCAA10.iso -Eboot C:\path\EBOOT.BIN
 #       NCAA Football 10 (ULUS10440) from YOUR disc image and YOUR decrypted
 #       EBOOT.BIN (see docs/NCAA10.md).  The result contains code translated
@@ -13,7 +18,7 @@
 # "Universal Windows Platform development" workloads (C++ UWP tools), Git for
 # Windows and Python 3.  Output: build/uwp-<game>/package/.
 param(
-    [ValidateSet("smoke", "ncaa10")][string]$Game = "smoke",
+    [ValidateSet("smoke", "launcher", "ncaa10")][string]$Game = "smoke",
     [string]$Iso = "",
     [string]$Eboot = "",
     [string]$Cover = "",
@@ -113,10 +118,12 @@ if (-not (Test-Path (Join-Path $LibchdrDir "CMakeLists.txt"))) {
 }
 
 # --- Game input and AOT translation -------------------------------------------
-$GameRoot = Join-Path $Root "games/$Game/root"
-$Generated = Join-Path $Root "profile/generated/$Game"
+# The launcher-only package links the game-free smoke corpus.
+$Corpus = if ($Game -eq "ncaa10") { "ncaa10" } else { "smoke" }
+$GameRoot = Join-Path $Root "games/$Corpus/root"
+$Generated = Join-Path $Root "profile/generated/$Corpus"
 New-Item -ItemType Directory -Force -Path $GameRoot | Out-Null
-if ($Game -eq "smoke") {
+if ($Corpus -eq "smoke") {
     $Guest = "ms0:/PSP/GAME/PSPWEB/EBOOT.PBP"
     New-Item -ItemType Directory -Force -Path (Join-Path $GameRoot "disc") | Out-Null
     Invoke-Checked $Python @("-I", (Join-Path $Root "uwp/make_smoke_elf.py"), (Join-Path $GameRoot "EBOOT.BIN"))
@@ -155,7 +162,7 @@ Invoke-Checked cmake @("-S", $Framework, "-B", $Cmake, "-G", "Visual Studio 17 2
     "-DCMAKE_SYSTEM_NAME=WindowsStore", "-DCMAKE_SYSTEM_VERSION=10.0",
     "-DCMAKE_PROJECT_INCLUDE=$(Join-Path $Root 'uwp/uwp.cmake')",
     "-DPSPRECOMP_PROFILE=web", "-DPSPRECOMP_BUILD_TESTS=OFF", "-DPSPRECOMP_BUILD_PROFILE_TESTS=OFF",
-    "-DPSPWEB_GAME=$Game", "-DPSPWEB_GUEST_PATH=$Guest", "-DPSPWEB_SDL=ON",
+    "-DPSPWEB_GAME=$Corpus", "-DPSPWEB_UWP_LAUNCHER_ONLY=$(if ($Game -eq 'launcher') { 'ON' } else { 'OFF' })", "-DPSPWEB_GUEST_PATH=$Guest", "-DPSPWEB_SDL=ON",
     "-DPSPRECOMP_GENERATED_OPT_LEVEL=$Opt", "-DPSPRECOMP_MSVC_MP_JOBS=$MsvcJobs",
     "-DPSPWEB_UWP_SDL2_INCLUDE=$(Join-Path $SdlDir 'include')", "-DPSPWEB_UWP_SDL2_LIB=$($SdlLib.FullName)",
     "-DPSPWEB_UWP_ANGLE_INCLUDE=$AngleInclude", "-DPSPWEB_UWP_EGL_LIB=$($EglLib.FullName)",
@@ -163,8 +170,8 @@ Invoke-Checked cmake @("-S", $Framework, "-B", $Cmake, "-G", "Visual Studio 17 2
     "-DPSPWEB_UWP_LIBCHDR_DIR=$LibchdrDir")
 Write-Host "== building (generated code can take a long time)"
 Invoke-Checked cmake @("--build", $Cmake, "--config", "Release", "--target", "pspweb", "--", "/nologo", "/v:minimal")
-$Exe = Get-ChildItem $Cmake -Recurse -Filter "pspweb_$Game.exe" | Where-Object { $_.FullName -match 'Release' -and $_.FullName -notmatch 'AppX' } | Select-Object -First 1
-if (-not $Exe) { throw "pspweb_$Game.exe was not produced" }
+$Exe = Get-ChildItem $Cmake -Recurse -Filter "pspweb_$Corpus.exe" | Where-Object { $_.FullName -match 'Release' -and $_.FullName -notmatch 'AppX' } | Select-Object -First 1
+if (-not $Exe) { throw "pspweb_$Corpus.exe was not produced" }
 
 # --- Package layout ----------------------------------------------------------
 Write-Host "== package layout"
@@ -206,8 +213,8 @@ if ($VcLibsAppx) {
 Write-Host "== VCLibs framework $VcLibsVersion"
 
 $Publisher = "CN=PSPRecompUWP"
-$Display = if ($Game -eq "ncaa10") { "NCAA 10 PSP" } else { "NCAA 10 PSP (test)" }
-$Identity = if ($Game -eq "ncaa10") { "PSPRecomp.NCAAFootball10" } else { "PSPRecomp.UWPSmoke" }
+$Display = if ($Game -eq "smoke") { "NCAA 10 PSP (test)" } else { "NCAA 10 PSP" }
+$Identity = if ($Game -eq "smoke") { "PSPRecomp.UWPSmoke" } else { "PSPRecomp.NCAAFootball10" }
 (Get-Content -Raw (Join-Path $Root "uwp/AppxManifest.xml.in")) `
     -replace '@NAME@', $Identity -replace '@VERSION@', $Version -replace '@PUBLISHER@', $Publisher `
     -replace '@DISPLAY@', $Display -replace '@EXECUTABLE@', $Exe.Name -replace '@VCLIBS_VERSION@', $VcLibsVersion |

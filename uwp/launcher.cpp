@@ -283,6 +283,10 @@ bool run_launcher(const LauncherConfig &config, GameImage &game) {
                 ui.close();
                 return false;
             }
+            if (input.accept && ready && !config.play_blocked.empty()) {
+                detail = config.play_blocked;
+                continue;
+            }
             if (input.accept && ready) {
                 ui.close();
                 return true;

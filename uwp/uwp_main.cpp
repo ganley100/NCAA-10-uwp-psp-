@@ -30,7 +30,7 @@ int pspweb_main(int argc, char **argv);
 
 namespace {
 
-#ifdef PSPWEB_NCAA10
+#if defined(PSPWEB_NCAA10) || defined(PSPWEB_UWP_LAUNCHER_ONLY)
 constexpr const char *kTitle = "NCAA 10 PSP";
 constexpr const char *kDiscId = "ULUS10440";
 constexpr bool kNeedsDisc = true;
@@ -52,6 +52,10 @@ int uwp_main(int, char **) {
     config.title = kTitle;
     config.disc_id = kDiscId;
     config.needs_disc = kNeedsDisc;
+#ifdef PSPWEB_UWP_LAUNCHER_ONLY
+    config.play_blocked = "This is the launcher only: the NCAA 10 game code is not in this build yet. "
+                          "Install the full NCAA 10 PSP package (built from your EBOOT.BIN) to play.";
+#endif
 
     // stdout and stderr both go to one unbuffered log readable from Device Portal.
     const std::string log = config.local + "\\pspweb.log";

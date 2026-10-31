@@ -25,6 +25,7 @@ set(PSPWEB_UWP_ANGLE_INCLUDE "" CACHE PATH "ANGLE include directory (EGL/, GLES2
 set(PSPWEB_UWP_EGL_LIB "" CACHE FILEPATH "ANGLE libEGL import library for UWP")
 set(PSPWEB_UWP_GLES_LIB "" CACHE FILEPATH "ANGLE libGLESv2 import library for UWP")
 set(PSPWEB_UWP_LIBCHDR_DIR "" CACHE PATH "libchdr source tree (CHD support for the disc reader)")
+option(PSPWEB_UWP_LAUNCHER_ONLY "NCAA 10 PSP start screen without the game code" OFF)
 foreach(var PSPWEB_UWP_SDL2_INCLUDE PSPWEB_UWP_SDL2_LIB PSPWEB_UWP_ANGLE_INCLUDE PSPWEB_UWP_EGL_LIB PSPWEB_UWP_GLES_LIB
         PSPWEB_UWP_LIBCHDR_DIR)
     if(NOT EXISTS "${${var}}")
@@ -77,6 +78,9 @@ function(pspweb_uwp_finish)
     target_include_directories(pspweb PRIVATE "${profile_dir}/host" "${PSPWEB_UWP_LIBCHDR_DIR}/deps/miniz-3.1.2")
     target_link_libraries(pspweb PRIVATE chdr-static miniz)
     target_compile_definitions(pspweb PRIVATE PSPWEB_UWP=1)
+    if(PSPWEB_UWP_LAUNCHER_ONLY)
+        target_compile_definitions(pspweb PRIVATE PSPWEB_UWP_LAUNCHER_ONLY=1)
+    endif()
     # Plain ISO C++ (no C++/CX); the WinRT parts live inside SDL.
     set_target_properties(pspweb PROPERTIES VS_WINRT_COMPONENT OFF WIN32_EXECUTABLE ON)
     target_link_libraries(pspweb PRIVATE runtimeobject.lib)
