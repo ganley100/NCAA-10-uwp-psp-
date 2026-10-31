@@ -75,7 +75,7 @@ jobs:
         run: |
           g++ -std=c++20 -O1 -g -fsanitize=address,undefined -Iuwp -Ibuild/libchdr/include -Ibuild/libchdr/deps/miniz-3.1.2 \
             -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_DEFLATE_APIS -DMINIZ_NO_STDIO -DMINIZ_NO_TIME \
-            uwp/tools/disc_to_iso.cpp uwp/disc_image.cpp \
+            uwp/disc_to_iso.cpp uwp/disc_image.cpp \
             -Wl,--start-group $(find build/libchdr-build -name '*.a') -Wl,--end-group -o build/disc_to_iso
           for image in dvd.chd dvd2048.chd cd.chd test.cso; do
             build/disc_to_iso "build/disc/$image" build/disc/out.iso
@@ -126,7 +126,7 @@ jobs:
           cmake --build build/libchdr-build --target chdr-static miniz -j 4
           g++ -std=c++20 -O2 -Iuwp -Ibuild/libchdr/include -Ibuild/libchdr/deps/miniz-3.1.2 \
             -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_DEFLATE_APIS -DMINIZ_NO_STDIO -DMINIZ_NO_TIME \
-            uwp/tools/disc_to_iso.cpp uwp/disc_image.cpp \
+            uwp/disc_to_iso.cpp uwp/disc_image.cpp \
             -Wl,--start-group $(find build/libchdr-build -name '*.a') -Wl,--end-group -o build/disc_to_iso
           build/disc_to_iso "$IMAGE" build/game/ncaa10.iso
       - uses: actions/upload-artifact@v4
