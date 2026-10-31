@@ -43,6 +43,12 @@ function(pspweb_uwp_finish)
         message(FATAL_ERROR "uwp.cmake: the profile did not define the pspweb target")
     endif()
     get_target_property(profile_dir pspweb SOURCE_DIR)
+    # The profile's GCC-style warning flags are not valid cl options.
+    get_target_property(options pspweb COMPILE_OPTIONS)
+    if(options)
+        list(REMOVE_ITEM options -Wall -Wextra)
+        set_target_properties(pspweb PROPERTIES COMPILE_OPTIONS "${options}")
+    endif()
     set_source_files_properties("${profile_dir}/host/main.cpp" TARGET_DIRECTORY pspweb
         PROPERTIES COMPILE_DEFINITIONS "main=pspweb_main")
     target_sources(pspweb PRIVATE "${PSPWEB_UWP_DIR}/uwp_main.cpp")
