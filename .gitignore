@@ -50,3 +50,7 @@ DATA.BIN
 ICON0.PNG
 ms0/
 memstick/
+
+# Downloaded UWP package artifacts.
+/xbox-uwp-*/
+/xbox-uwp-*.zip
