@@ -67,6 +67,8 @@ jobs:
           if (-not $iso) { throw "ncaa10-input.zip must contain your NCAA Football 10 .iso" }
           "ISO=$($iso.FullName)" | Out-File -Append $env:GITHUB_ENV
           if ($eboot) { "EBOOT=$($eboot.FullName)" | Out-File -Append $env:GITHUB_ENV }
+          $cover = Get-ChildItem build/input -Recurse -Include cover.png, cover.jpg | Select-Object -First 1
+          if ($cover) { "COVER=$($cover.FullName)" | Out-File -Append $env:GITHUB_ENV }
           Remove-Item build/input/ncaa10-input.zip
 
       - name: Build and package
@@ -76,6 +78,7 @@ jobs:
           if ($env:GAME -eq 'ncaa10') {
             $extra += @('-Iso', $env:ISO)
             if ($env:EBOOT) { $extra += @('-Eboot', $env:EBOOT) }
+            if ($env:COVER) { $extra += @('-Cover', $env:COVER) }
           }
           ./scripts/build_uwp.ps1 -Game $env:GAME -Opt ${{ inputs.opt || '1' }} -Version "1.0.${{ github.run_number }}.0" @extra
 

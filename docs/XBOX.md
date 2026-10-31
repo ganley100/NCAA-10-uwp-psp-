@@ -39,7 +39,8 @@ Two variants:
 2. Create `ncaa10-input.zip` containing your NCAA Football 10 `.iso` and your
    decrypted `EBOOT.BIN` (SHA-256 `2b743dc6...94f6`, see
    [docs/NCAA10.md](NCAA10.md#verified-game-identity); PPSSPP's developer tools
-   can dump it). Each release asset must be under 2 GB.
+   can dump it). Each release asset must be under 2 GB. Optionally add a
+   square `cover.png` (or `cover.jpg`) to use your box art for the tiles.
 3. Create a release with the tag `game-input` and attach `ncaa10-input.zip`.
 4. Actions > **Xbox UWP package** > Run workflow > game `ncaa10`.
 5. Download the `xbox-uwp-ncaa10` artifact when the run finishes.
@@ -53,8 +54,11 @@ Platform tools*), plus Git for Windows and Python 3. Then in PowerShell:
 ```powershell
 git clone https://github.com/ganley100/NCAA-10-uwp-psp-.git
 cd NCAA-10-uwp-psp-
-./scripts/build_uwp.ps1 -Game ncaa10 -Iso C:\path\NCAA10.iso -Eboot C:\path\EBOOT.BIN
+./scripts/build_uwp.ps1 -Game ncaa10 -Iso C:\path\NCAA10.iso -Eboot C:\path\EBOOT.BIN -Cover C:\path\cover.png
 ```
+
+`-Cover` is optional; without it the package uses the generic icons in
+`uwp/Assets`.
 
 ## Installing on an Xbox One S
 

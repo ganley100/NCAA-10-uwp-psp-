@@ -16,6 +16,7 @@ param(
     [ValidateSet("smoke", "ncaa10")][string]$Game = "smoke",
     [string]$Iso = "",
     [string]$Eboot = "",
+    [string]$Cover = "",
     [ValidateRange(0, 3)][int]$Opt = 1,
     [string]$Version = "1.0.0.0",
     [int]$MsvcJobs = 2,
@@ -163,6 +164,11 @@ New-Item -ItemType Directory -Force -Path (Join-Path $Layout "game") | Out-Null
 Copy-Item $Exe.FullName, $SdlDll $Layout
 $AngleDlls | ForEach-Object { Copy-Item $_.FullName $Layout }
 Copy-Item -Recurse (Join-Path $Root "uwp/Assets") (Join-Path $Layout "Assets")
+if ($Cover) {
+    Write-Host "== tiles from $Cover"
+    Invoke-Checked $Python @("-m", "pip", "install", "--quiet", "pillow")
+    Invoke-Checked $Python @((Join-Path $Root "uwp/make_cover_assets.py"), $Cover, (Join-Path $Layout "Assets"))
+}
 Copy-Item (Join-Path $GameRoot "EBOOT.BIN") (Join-Path $Layout "game/EBOOT.BIN")
 Copy-Item -Recurse (Join-Path $GameRoot "disc") (Join-Path $Layout "game/disc")
 if (-not (Test-Path (Join-Path $Layout "game/disc"))) { New-Item -ItemType Directory (Join-Path $Layout "game/disc") | Out-Null }
