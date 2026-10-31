@@ -52,9 +52,11 @@ int uwp_main(int, char **) {
     config.title = kTitle;
     config.disc_id = kDiscId;
     config.needs_disc = kNeedsDisc;
-#ifdef PSPWEB_UWP_LAUNCHER_ONLY
-    config.play_blocked = "This is the launcher only: the NCAA 10 game code is not in this build yet. "
-                          "Install the full NCAA 10 PSP package (built from your EBOOT.BIN) to play.";
+#if defined(PSPWEB_UWP_LAUNCHER_ONLY)
+    // The game code lives in the separate "NCAA 10 PSP Game" package.
+    config.launch_uri = "ncaa10psp-game:play";
+#elif defined(PSPWEB_NCAA10)
+    config.auto_play = true; // started by the launcher, or straight from its own tile
 #endif
 
     // stdout and stderr both go to one unbuffered log readable from Device Portal.

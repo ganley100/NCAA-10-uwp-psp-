@@ -11,6 +11,19 @@ controller and audio. The ANGLE (GLES over Direct3D 11) libraries are linked
 for the GL renderer, which is not enabled in the SDL player yet. Expect low
 frame rates on the Xbox One S CPU.
 
+## Two apps: the launcher and the game
+
+| Package | Contains | Built from |
+| --- | --- | --- |
+| **NCAA 10 PSP** (launcher, `-Game launcher`) | Start screen only, no game code or data | This repository; built on every push |
+| **NCAA 10 PSP Game** (`-Game ncaa10`) | The game code translated from your `EBOOT.BIN` | Your files, in a private repository or on your PC |
+
+Install both. Put your game file in `D:\DevelopmentFiles`, open **NCAA 10 PSP**
+and press **A**: the launcher finds the game file and starts **NCAA 10 PSP
+Game** (through the `ncaa10psp-game:` protocol), which reads the game file in
+place and goes straight into the game. The game app can also be started from
+its own tile. Neither package contains your disc.
+
 ## What gets built
 
 `scripts/build_uwp.ps1` (also run by `.github/workflows/uwp.yml`) produces

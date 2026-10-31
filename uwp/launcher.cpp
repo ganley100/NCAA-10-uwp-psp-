@@ -2,6 +2,9 @@
 
 #include <SDL.h>
 
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.System.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -240,6 +243,27 @@ private:
     int stick_zone_{};
 };
 
+// Starts the separately installed game app through its protocol.  Returns an
+// empty string once Windows accepted the launch, otherwise what went wrong.
+// WinRT calls are polled so SDL keeps pumping the UI thread's dispatcher.
+std::string launch_game(Ui &ui, const std::string &uri, const std::string &title) {
+    namespace wf = winrt::Windows::Foundation;
+    namespace wsys = winrt::Windows::System;
+    try {
+        const wf::Uri target{winrt::to_hstring(uri)};
+        const auto query = wsys::Launcher::QueryUriSupportAsync(target, wsys::LaunchQuerySupportType::Uri);
+        while (query.Status() == wf::AsyncStatus::Started) ui.busy("Starting " + title + "...", "", -1.0);
+        if (query.GetResults() != wsys::LaunchQuerySupportStatus::Available)
+            return "The " + title + " Game package is not installed. Build it from your EBOOT.BIN and "
+                   "install it next to this launcher.";
+        const auto launch = wsys::Launcher::LaunchUriAsync(target);
+        while (launch.Status() == wf::AsyncStatus::Started) ui.busy("Starting " + title + "...", "", -1.0);
+        return launch.GetResults() ? std::string() : "Windows did not start the game app.";
+    } catch (const winrt::hresult_error &error) {
+        return "Could not start the game app: " + winrt::to_string(error.message());
+    }
+}
+
 } // namespace
 
 std::string locate_eboot(const LauncherConfig &config) {
@@ -283,11 +307,17 @@ bool run_launcher(const LauncherConfig &config, GameImage &game) {
                 ui.close();
                 return false;
             }
-            if (input.accept && ready && !config.play_blocked.empty()) {
-                detail = config.play_blocked;
+            if (input.accept && ready && !config.launch_uri.empty()) {
+                const std::string error = launch_game(ui, config.launch_uri, config.title);
+                if (error.empty()) {
+                    std::fprintf(stderr, "[launcher] started %s\n", config.launch_uri.c_str());
+                    ui.close();
+                    return false; // the game app takes over
+                }
+                detail = error;
                 continue;
             }
-            if (input.accept && ready) {
+            if ((input.accept || config.auto_play) && ready) {
                 ui.close();
                 return true;
             }

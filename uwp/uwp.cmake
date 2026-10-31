@@ -26,6 +26,7 @@ set(PSPWEB_UWP_EGL_LIB "" CACHE FILEPATH "ANGLE libEGL import library for UWP")
 set(PSPWEB_UWP_GLES_LIB "" CACHE FILEPATH "ANGLE libGLESv2 import library for UWP")
 set(PSPWEB_UWP_LIBCHDR_DIR "" CACHE PATH "libchdr source tree (CHD support for the disc reader)")
 option(PSPWEB_UWP_LAUNCHER_ONLY "NCAA 10 PSP start screen without the game code" OFF)
+set(PSPWEB_UWP_CPPWINRT_INCLUDE "" CACHE PATH "Windows SDK cppwinrt include directory")
 foreach(var PSPWEB_UWP_SDL2_INCLUDE PSPWEB_UWP_SDL2_LIB PSPWEB_UWP_ANGLE_INCLUDE PSPWEB_UWP_EGL_LIB PSPWEB_UWP_GLES_LIB
         PSPWEB_UWP_LIBCHDR_DIR)
     if(NOT EXISTS "${${var}}")
@@ -76,6 +77,10 @@ function(pspweb_uwp_finish)
     target_sources(pspweb PRIVATE "${PSPWEB_UWP_DIR}/uwp_main.cpp" "${PSPWEB_UWP_DIR}/launcher.cpp"
         "${PSPWEB_UWP_DIR}/game_locator.cpp" "${PSPWEB_UWP_DIR}/disc_image.cpp")
     target_include_directories(pspweb PRIVATE "${profile_dir}/host" "${PSPWEB_UWP_LIBCHDR_DIR}/deps/miniz-3.1.2")
+    # The launcher starts the game app with Windows.System.Launcher (C++/WinRT).
+    if(PSPWEB_UWP_CPPWINRT_INCLUDE)
+        target_include_directories(pspweb PRIVATE "${PSPWEB_UWP_CPPWINRT_INCLUDE}")
+    endif()
     target_link_libraries(pspweb PRIVATE chdr-static miniz)
     target_compile_definitions(pspweb PRIVATE PSPWEB_UWP=1)
     if(PSPWEB_UWP_LAUNCHER_ONLY)

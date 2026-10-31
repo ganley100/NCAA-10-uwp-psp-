@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Filled in by scripts/build_uwp.ps1: @NAME@ @VERSION@ @PUBLISHER@ @DISPLAY@ @EXECUTABLE@ @VCLIBS_VERSION@ -->
+<!-- Filled in by scripts/build_uwp.ps1: @NAME@ @VERSION@ @PUBLISHER@ @DISPLAY@ @EXECUTABLE@ @VCLIBS_VERSION@ @EXTENSIONS@ -->
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
@@ -27,6 +27,7 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square310x310Logo="Assets\Square310x310Logo.png" />
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
+      @EXTENSIONS@
     </Application>
   </Applications>
   <Capabilities>

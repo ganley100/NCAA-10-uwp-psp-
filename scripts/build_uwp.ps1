@@ -5,9 +5,9 @@
 #       packaging, signing and Xbox install path without any game data.
 #
 #   scripts/build_uwp.ps1 -Game launcher
-#       "NCAA 10 PSP" start screen without the game code: finds your game file
-#       (Development Files, D:, LocalState, USB) but cannot play it.  It is a
-#       separate app from the ncaa10 build; both can be installed side by side.
+#       "NCAA 10 PSP" launcher without any game: finds your game file
+#       (Development Files, D:, LocalState, USB) and on Play starts the
+#       separately installed "NCAA 10 PSP Game" package (-Game ncaa10).
 #
 #   scripts/build_uwp.ps1 -Game ncaa10 -Iso C:\path\NCAA10.iso -Eboot C:\path\EBOOT.BIN
 #       NCAA Football 10 (ULUS10440) from YOUR disc image and YOUR decrypted
@@ -167,7 +167,8 @@ Invoke-Checked cmake @("-S", $Framework, "-B", $Cmake, "-G", "Visual Studio 17 2
     "-DPSPWEB_UWP_SDL2_INCLUDE=$(Join-Path $SdlDir 'include')", "-DPSPWEB_UWP_SDL2_LIB=$($SdlLib.FullName)",
     "-DPSPWEB_UWP_ANGLE_INCLUDE=$AngleInclude", "-DPSPWEB_UWP_EGL_LIB=$($EglLib.FullName)",
     "-DPSPWEB_UWP_GLES_LIB=$($GlesLib.FullName)",
-    "-DPSPWEB_UWP_LIBCHDR_DIR=$LibchdrDir")
+    "-DPSPWEB_UWP_LIBCHDR_DIR=$LibchdrDir",
+    "-DPSPWEB_UWP_CPPWINRT_INCLUDE=${env:ProgramFiles(x86)}\Windows Kits\10\Include\$Sdk\cppwinrt")
 Write-Host "== building (generated code can take a long time)"
 Invoke-Checked cmake @("--build", $Cmake, "--config", "Release", "--target", "pspweb", "--", "/nologo", "/v:minimal")
 $Exe = Get-ChildItem $Cmake -Recurse -Filter "pspweb_$Corpus.exe" | Where-Object { $_.FullName -match 'Release' -and $_.FullName -notmatch 'AppX' } | Select-Object -First 1
@@ -213,11 +214,17 @@ if ($VcLibsAppx) {
 Write-Host "== VCLibs framework $VcLibsVersion"
 
 $Publisher = "CN=PSPRecompUWP"
-$Display = if ($Game -eq "smoke") { "NCAA 10 PSP (test)" } else { "NCAA 10 PSP" }
+$Display = @{ smoke = "NCAA 10 PSP (test)"; launcher = "NCAA 10 PSP"; ncaa10 = "NCAA 10 PSP Game" }[$Game]
+# The launcher starts the game package through this protocol.
+$Extensions = if ($Game -eq "ncaa10") {
+    '<Extensions><uap:Extension Category="windows.protocol"><uap:Protocol Name="ncaa10psp-game">' +
+    '<uap:DisplayName>NCAA 10 PSP Game</uap:DisplayName></uap:Protocol></uap:Extension></Extensions>'
+} else { "" }
 $Identity = @{ smoke = "PSPRecomp.UWPSmoke"; launcher = "PSPRecomp.NCAA10Launcher"; ncaa10 = "PSPRecomp.NCAAFootball10" }[$Game]
 (Get-Content -Raw (Join-Path $Root "uwp/AppxManifest.xml.in")) `
     -replace '@NAME@', $Identity -replace '@VERSION@', $Version -replace '@PUBLISHER@', $Publisher `
-    -replace '@DISPLAY@', $Display -replace '@EXECUTABLE@', $Exe.Name -replace '@VCLIBS_VERSION@', $VcLibsVersion |
+    -replace '@DISPLAY@', $Display -replace '@EXECUTABLE@', $Exe.Name -replace '@VCLIBS_VERSION@', $VcLibsVersion `
+    -replace '@EXTENSIONS@', $Extensions |
     Set-Content -Encoding UTF8 (Join-Path $Layout "AppxManifest.xml")
 
 # --- Pack and sign -----------------------------------------------------------
