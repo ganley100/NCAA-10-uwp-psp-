@@ -23,6 +23,7 @@ param(
     [string]$Eboot = "",
     [string]$Cover = "",
     [switch]$PackDisc,
+    [string]$PackImage = "",
     [ValidateRange(0, 3)][int]$Opt = 1,
     [string]$Version = "1.0.0.0",
     [int]$MsvcJobs = 2,
@@ -192,7 +193,12 @@ if ($Cover) {
 Write-Host "== start screen images"
 Invoke-Checked $Python $LauncherArgs
 Copy-Item (Join-Path $GameRoot "EBOOT.BIN") (Join-Path $Layout "game/EBOOT.BIN")
-if ($PackDisc -and $Iso) {
+# Your game file travels in the package when asked; the console still prefers
+# one in Development Files, D:, LocalState or on USB (uwp/game_locator.cpp).
+if ($PackImage) {
+    Write-Host "== packing $([System.IO.Path]::GetFileName($PackImage)) into the package"
+    Copy-Item $PackImage (Join-Path $Layout "game/$([System.IO.Path]::GetFileName($PackImage))")
+} elseif ($PackDisc -and $Iso) {
     Write-Host "== packing the disc image into the package"
     Copy-Item $Iso (Join-Path $Layout "game/$([System.IO.Path]::GetFileName($Iso))")
 }

@@ -50,16 +50,19 @@ Two variants:
 1. Make this repository **private** (Settings > General > Danger Zone > Change
    visibility). The workflow refuses the game build in a public repository,
    because artifacts of public repositories can be downloaded by anyone.
-2. Create `ncaa10-input.zip` containing your NCAA Football 10 `.iso` (needed at
-   build time to verify the disc and translate its audio programs) and your
-   decrypted `EBOOT.BIN` (SHA-256 `2b743dc6...94f6`, see
-   [docs/NCAA10.md](NCAA10.md#verified-game-identity); PPSSPP's developer tools
-   can dump it). Each release asset must be under 2 GB. Optionally add a
-   square `cover.png` (or `cover.jpg`) to use your box art for the tiles.
-3. Create a release with the tag `game-input` and attach `ncaa10-input.zip`.
-   You can also attach your square `cover.png` to that release on its own;
-   every package built in the private repository, the game-free test one
-   included, then uses it for the tiles and start screen.
+2. Create a release tagged `game-input` and attach, loose or zipped (each
+   asset under 2 GB):
+   - your NCAA Football 10 game file: `.chd`, `.cso` or `.iso`;
+   - your decrypted `EBOOT.BIN` (SHA-256 `2b743dc6...94f6`, see
+     [docs/NCAA10.md](NCAA10.md#verified-game-identity); PPSSPP's developer
+     tools can dump it; the one inside the disc is encrypted);
+   - optionally your square `cover.png`, also used by every other package
+     built in the private repository.
+
+   A Linux job turns a `.chd` or `.cso` into the ISO the build needs (with
+   the same reader the console uses), and your game file as uploaded is put
+   in the package (workflow option *pack_disc*, on by default).
+3. (Nothing to do: the release is all the workflow needs.)
 4. Actions > **Xbox UWP package** > Run workflow > game `ncaa10`.
 5. Download the `xbox-uwp-ncaa10` artifact when the run finishes.
 

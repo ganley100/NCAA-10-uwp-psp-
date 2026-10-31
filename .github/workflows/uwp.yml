@@ -3,9 +3,10 @@ name: Xbox UWP package
 # launcher - "NCAA 10 PSP" start screen without the game code (no game data).
 #            Built on every push; finds your game file but cannot play it.
 # smoke    - game-free test package (synthetic PSP program).
-# ncaa10 - NCAA Football 10 from YOUR files. Only runs in a PRIVATE repository:
-#          upload ncaa10-input.zip (your .iso + decrypted EBOOT.BIN) to a
-#          release tagged "game-input" first. See docs/XBOX.md.
+# ncaa10   - "NCAA 10 PSP Game" from YOUR files. Only runs in a PRIVATE
+#            repository: attach your game file (.chd, .cso or .iso), your
+#            decrypted EBOOT.BIN and optionally cover.png to a release tagged
+#            "game-input" (loose or in .zip files). See docs/XBOX.md.
 
 on:
   push:
@@ -29,9 +30,9 @@ on:
         description: 'Optimization level for the generated game code (0-3)'
         default: '1'
       pack_disc:
-        description: 'Put the disc in the package (about 2 GB) instead of importing the ISO on the console'
+        description: 'ncaa10: put your game file (.chd/.cso/.iso as uploaded) in the package'
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -70,8 +71,75 @@ jobs:
           chdman createcd -i build/disc/test.iso -o build/disc/cd.chd
           build/disc_image_test build/disc/test.iso build/disc/test.iso build/disc/test.cso \
             build/disc/dvd.chd build/disc/dvd2048.chd build/disc/cd.chd
+      - name: CHD and CSO convert back to the exact ISO (build input path)
+        run: |
+          g++ -std=c++20 -O1 -g -fsanitize=address,undefined -Iuwp -Ibuild/libchdr/include -Ibuild/libchdr/deps/miniz-3.1.2 \
+            -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_DEFLATE_APIS -DMINIZ_NO_STDIO -DMINIZ_NO_TIME \
+            uwp/tools/disc_to_iso.cpp uwp/disc_image.cpp \
+            -Wl,--start-group $(find build/libchdr-build -name '*.a') -Wl,--end-group -o build/disc_to_iso
+          for image in dvd.chd dvd2048.chd cd.chd test.cso; do
+            build/disc_to_iso "build/disc/$image" build/disc/out.iso
+            cmp build/disc/out.iso build/disc/test.iso && echo "$image -> identical ISO"
+          done
+
+  game-input:
+    # ncaa10 only: gathers your files from the private game-input release and,
+    # for a .chd or .cso, writes the ISO the build steps need with the same
+    # reader the console uses. Handed to the Windows job as a short-lived
+    # artifact of this private repository.
+    if: (inputs.game || 'launcher') == 'ncaa10'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Refuse game builds in a public repository
+        if: github.event.repository.private != true
+        run: |
+          echo "::error::The ncaa10 package contains code translated from your game. Make this repository private before building it here."
+          exit 1
+      - uses: actions/checkout@v4
+      - name: Fetch your files from the game-input release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/input build/game
+          gh release download game-input --repo "${{ github.repository }}" --dir build/input
+          for zip in build/input/*.zip; do [ -e "$zip" ] && unzip -o -q "$zip" -d build/input && rm "$zip"; done
+          find build/input -type f -printf '%s\t%P\n'
+          image=$(find build/input -type f \( -iname '*.chd' -o -iname '*.cso' -o -iname '*.iso' \) | head -n 1)
+          eboot=$(find build/input -type f -iname 'EBOOT.BIN' | head -n 1)
+          cover=$(find build/input -type f \( -iname 'cover.png' -o -iname 'cover.jpg' \) | head -n 1)
+          [ -n "$image" ] || { echo "::error::Attach your NCAA Football 10 game file (.chd, .cso or .iso) to the game-input release."; exit 1; }
+          [ -n "$eboot" ] || { echo "::error::Attach your decrypted EBOOT.BIN (PPSSPP: Settings > Tools > Developer tools) to the game-input release."; exit 1; }
+          mv "$image" "build/game/$(basename "$image")"
+          mv "$eboot" build/game/EBOOT.BIN
+          [ -n "$cover" ] && mv "$cover" "build/game/cover.${cover##*.}"
+          echo "IMAGE=build/game/$(basename "$image")" >> "$GITHUB_ENV"
+      - name: CHD / CSO to ISO for the build
+        run: |
+          case "${IMAGE,,}" in
+            *.iso) ln "$IMAGE" build/game/ncaa10.iso 2>/dev/null || cp "$IMAGE" build/game/ncaa10.iso; exit 0 ;;
+          esac
+          commit=$(grep -oP 'LibchdrCommit = "\K[0-9a-f]+' scripts/build_uwp.ps1)
+          git clone --quiet https://github.com/rtissera/libchdr.git build/libchdr
+          git -C build/libchdr checkout --quiet "$commit"
+          cmake -S build/libchdr -B build/libchdr-build -DBUILD_SHARED_LIBS=OFF -DCHDR_WANT_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/libchdr-build --target chdr-static miniz -j 4
+          g++ -std=c++20 -O2 -Iuwp -Ibuild/libchdr/include -Ibuild/libchdr/deps/miniz-3.1.2 \
+            -DMINIZ_NO_ARCHIVE_APIS -DMINIZ_NO_DEFLATE_APIS -DMINIZ_NO_STDIO -DMINIZ_NO_TIME \
+            uwp/tools/disc_to_iso.cpp uwp/disc_image.cpp \
+            -Wl,--start-group $(find build/libchdr-build -name '*.a') -Wl,--end-group -o build/disc_to_iso
+          build/disc_to_iso "$IMAGE" build/game/ncaa10.iso
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ncaa10-game-input
+          path: build/game/
+          retention-days: 1
+          compression-level: 0
 
   uwp:
+    needs: [game-input]
+    # Runs for every package; game-input is skipped unless building ncaa10.
+    if: ${{ !cancelled() && (needs.game-input.result == 'success' || needs.game-input.result == 'skipped') }}
     runs-on: windows-2022
     timeout-minutes: 360
     env:
@@ -85,30 +153,23 @@ jobs:
         with:
           arch: x64
 
-      - name: Refuse game builds in a public repository
-        if: env.GAME == 'ncaa10' && github.event.repository.private != true
-        shell: pwsh
-        run: |
-          Write-Host "::error::The ncaa10 package contains code translated from your game and your disc files. Make this repository private before building it here."
-          exit 1
+      - uses: actions/download-artifact@v4
+        if: env.GAME == 'ncaa10'
+        with:
+          name: ncaa10-game-input
+          path: build/game
 
-      - name: Fetch your game input (private release asset)
+      - name: Your game files
         if: env.GAME == 'ncaa10'
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          New-Item -ItemType Directory -Force build/input | Out-Null
-          gh release download game-input --repo "${{ github.repository }}" --pattern 'ncaa10-input.zip' --dir build/input
-          Expand-Archive build/input/ncaa10-input.zip -DestinationPath build/input -Force
-          $iso = Get-ChildItem build/input -Recurse -Filter *.iso | Select-Object -First 1
-          $eboot = Get-ChildItem build/input -Recurse -Filter EBOOT.BIN | Select-Object -First 1
-          if (-not $iso) { throw "ncaa10-input.zip must contain your NCAA Football 10 .iso" }
-          "ISO=$($iso.FullName)" | Out-File -Append $env:GITHUB_ENV
-          if ($eboot) { "EBOOT=$($eboot.FullName)" | Out-File -Append $env:GITHUB_ENV }
-          $cover = Get-ChildItem build/input -Recurse -Include cover.png, cover.jpg | Select-Object -First 1
+          $image = Get-ChildItem build/game -File | Where-Object { $_.Extension -in '.chd', '.cso', '.iso' -and $_.Name -ne 'ncaa10.iso' } | Select-Object -First 1
+          if (-not $image) { $image = Get-Item build/game/ncaa10.iso }
+          "ISO=$((Get-Item build/game/ncaa10.iso).FullName)" | Out-File -Append $env:GITHUB_ENV
+          "EBOOT=$((Get-Item build/game/EBOOT.BIN).FullName)" | Out-File -Append $env:GITHUB_ENV
+          "PACK_IMAGE=$($image.FullName)" | Out-File -Append $env:GITHUB_ENV
+          $cover = Get-ChildItem build/game -Include cover.png, cover.jpg -Recurse | Select-Object -First 1
           if ($cover) { "COVER=$($cover.FullName)" | Out-File -Append $env:GITHUB_ENV }
-          Remove-Item build/input/ncaa10-input.zip
 
       - name: Fetch your cover (private release asset, any package)
         # A cover.png attached to the game-input release is used for the tiles
@@ -131,9 +192,8 @@ jobs:
           $extra = @()
           if ($env:COVER) { $extra += @('-Cover', $env:COVER) }
           if ($env:GAME -eq 'ncaa10') {
-            $extra += @('-Iso', $env:ISO)
-            if ($env:EBOOT) { $extra += @('-Eboot', $env:EBOOT) }
-            if ('${{ inputs.pack_disc }}' -eq 'true') { $extra += '-PackDisc' }
+            $extra += @('-Iso', $env:ISO, '-Eboot', $env:EBOOT)
+            if ('${{ inputs.pack_disc }}' -ne 'false') { $extra += @('-PackImage', $env:PACK_IMAGE) }
           }
           ./scripts/build_uwp.ps1 -Game $env:GAME -Opt ${{ inputs.opt || '1' }} -Version "1.0.${{ github.run_number }}.0" @extra
 
