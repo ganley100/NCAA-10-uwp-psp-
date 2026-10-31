@@ -1,0 +1,87 @@
+name: Xbox UWP package
+
+# smoke  - game-free package (synthetic PSP program). Runs on every push and
+#          proves the UWP toolchain, packaging, signing and Xbox install path.
+# ncaa10 - NCAA Football 10 from YOUR files. Only runs in a PRIVATE repository:
+#          upload ncaa10-input.zip (your .iso + decrypted EBOOT.BIN) to a
+#          release tagged "game-input" first. See docs/XBOX.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'uwp/**'
+      - 'profile/**'
+      - 'patches/**'
+      - 'scripts/build_uwp.ps1'
+      - 'scripts/setup.sh'
+      - 'scripts/build_tools.sh'
+      - '.github/workflows/uwp.yml'
+  workflow_dispatch:
+    inputs:
+      game:
+        description: 'smoke (no game data) or ncaa10 (private repo + game-input release)'
+        type: choice
+        options: [smoke, ncaa10]
+        default: smoke
+      opt:
+        description: 'Optimization level for the generated game code (0-3)'
+        default: '1'
+
+permissions:
+  contents: read
+
+jobs:
+  uwp:
+    runs-on: windows-2022
+    timeout-minutes: 360
+    env:
+      GAME: ${{ inputs.game || 'smoke' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Refuse game builds in a public repository
+        if: env.GAME == 'ncaa10' && github.event.repository.private != true
+        shell: pwsh
+        run: |
+          Write-Host "::error::The ncaa10 package contains code translated from your game and your disc files. Make this repository private before building it here."
+          exit 1
+
+      - name: Fetch your game input (private release asset)
+        if: env.GAME == 'ncaa10'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force build/input | Out-Null
+          gh release download game-input --repo "${{ github.repository }}" --pattern 'ncaa10-input.zip' --dir build/input
+          Expand-Archive build/input/ncaa10-input.zip -DestinationPath build/input -Force
+          $iso = Get-ChildItem build/input -Recurse -Filter *.iso | Select-Object -First 1
+          $eboot = Get-ChildItem build/input -Recurse -Filter EBOOT.BIN | Select-Object -First 1
+          if (-not $iso) { throw "ncaa10-input.zip must contain your NCAA Football 10 .iso" }
+          "ISO=$($iso.FullName)" | Out-File -Append $env:GITHUB_ENV
+          if ($eboot) { "EBOOT=$($eboot.FullName)" | Out-File -Append $env:GITHUB_ENV }
+          Remove-Item build/input/ncaa10-input.zip
+
+      - name: Build and package
+        shell: pwsh
+        run: |
+          $extra = @()
+          if ($env:GAME -eq 'ncaa10') {
+            $extra += @('-Iso', $env:ISO)
+            if ($env:EBOOT) { $extra += @('-Eboot', $env:EBOOT) }
+          }
+          ./scripts/build_uwp.ps1 -Game $env:GAME -Opt ${{ inputs.opt || '1' }} -Version "1.0.${{ github.run_number }}.0" @extra
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xbox-uwp-${{ env.GAME }}
+          path: build/uwp-${{ env.GAME }}/package/
+          retention-days: 7
+          compression-level: 0

@@ -1,0 +1,82 @@
+name: Source checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-compiler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit tracked source and script syntax
+        run: |
+          python scripts/check_source_tree.py --tracked
+          python -m compileall -q scripts
+          for script in scripts/*.sh; do bash -n "$script"; done
+      - name: Synthetic source and browser regressions
+        run: |
+          python scripts/test_source_workflow.py
+          python scripts/test_static_package.py
+          python scripts/test_pages_site.py
+          python scripts/test_pages_player.py
+          python scripts/test_ge_replay_benchmark.py
+          node scripts/test_web_audio.mjs
+          node scripts/test_web_osk.mjs
+          node scripts/test_web_input.mjs
+          node scripts/test_web_saves.mjs
+          node scripts/test_web_persistence.mjs
+          node scripts/test_local_iso.mjs
+          node scripts/test_web_launcher.mjs
+          node scripts/test_reference_debugger.mjs
+      - name: Reconstruct patched compiler without game data
+        run: |
+          scripts/setup.sh --no-emsdk
+          cmake -S PSPRecomp -B build/tools -DPSPRECOMP_BUILD_TESTS=ON
+          cmake --build build/tools -j 2
+          ctest --test-dir build/tools --output-on-failure
+          python scripts/test_ncaa_codegen.py
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build the browser translator without game data
+        run: |
+          bash scripts/setup.sh
+          bash scripts/build_translator.sh
+      - name: Translator Wasm against native tools
+        run: node scripts/test_web_translator.mjs
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Launcher and translator in Chromium
+        run: |
+          node scripts/test_web_launcher_browser.mjs
+          node scripts/test_iso_launcher_browser.mjs
+          node scripts/test_web_translator_browser.mjs
