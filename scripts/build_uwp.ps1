@@ -6,8 +6,8 @@
 #
 #   scripts/build_uwp.ps1 -Game launcher
 #       "NCAA 10 PSP" start screen without the game code: finds your game file
-#       (Development Files, D:, LocalState, USB) but cannot play it.  Same
-#       package identity as the ncaa10 build, which later installs over it.
+#       (Development Files, D:, LocalState, USB) but cannot play it.  It is a
+#       separate app from the ncaa10 build; both can be installed side by side.
 #
 #   scripts/build_uwp.ps1 -Game ncaa10 -Iso C:\path\NCAA10.iso -Eboot C:\path\EBOOT.BIN
 #       NCAA Football 10 (ULUS10440) from YOUR disc image and YOUR decrypted
@@ -214,7 +214,7 @@ Write-Host "== VCLibs framework $VcLibsVersion"
 
 $Publisher = "CN=PSPRecompUWP"
 $Display = if ($Game -eq "smoke") { "NCAA 10 PSP (test)" } else { "NCAA 10 PSP" }
-$Identity = if ($Game -eq "smoke") { "PSPRecomp.UWPSmoke" } else { "PSPRecomp.NCAAFootball10" }
+$Identity = @{ smoke = "PSPRecomp.UWPSmoke"; launcher = "PSPRecomp.NCAA10Launcher"; ncaa10 = "PSPRecomp.NCAAFootball10" }[$Game]
 (Get-Content -Raw (Join-Path $Root "uwp/AppxManifest.xml.in")) `
     -replace '@NAME@', $Identity -replace '@VERSION@', $Version -replace '@PUBLISHER@', $Publisher `
     -replace '@DISPLAY@', $Display -replace '@EXECUTABLE@', $Exe.Name -replace '@VCLIBS_VERSION@', $VcLibsVersion |
