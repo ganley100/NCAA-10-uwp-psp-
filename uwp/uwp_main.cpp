@@ -6,10 +6,10 @@
 // player expects and runs it (main.cpp's main() is compiled as pspweb_main
 // for this target, see uwp/uwp.cmake).
 //
-// Game files: the decrypted EBOOT.BIN ships in the package; the disc comes
-// from an ISO imported on the start screen (LocalState\game\disc and
-// disc.iso) or, for -PackDisc builds, from the package.  Saves live in
-// LocalState\ms0 and the log in LocalState\pspweb.log.
+// Game files: the decrypted EBOOT.BIN ships in the package; the disc is the
+// player's .iso / .cso / .chd found in Development Files, LocalState or on a
+// USB drive (uwp/game_locator.cpp) and is read in place through webfs.  Saves
+// live in LocalState\ms0 and the log in LocalState\pspweb.log.
 
 #include "launcher.hpp"
 
@@ -33,9 +33,11 @@ namespace {
 #ifdef PSPWEB_NCAA10
 constexpr const char *kTitle = "NCAA Football 10";
 constexpr const char *kDiscId = "ULUS10440";
+constexpr bool kNeedsDisc = true;
 #else
 constexpr const char *kTitle = "PSP Recomp UWP";
 constexpr const char *kDiscId = "";
+constexpr bool kNeedsDisc = false; // the smoke package's synthetic program reads no disc
 #endif
 
 std::string winrt_path(SDL_WinRT_Path which) {
@@ -49,6 +51,7 @@ int uwp_main(int, char **) {
     config.local = winrt_path(SDL_WINRT_PATH_LOCAL_FOLDER);
     config.title = kTitle;
     config.disc_id = kDiscId;
+    config.needs_disc = kNeedsDisc;
 
     // stdout and stderr both go to one unbuffered log readable from Device Portal.
     const std::string log = config.local + "\\pspweb.log";
@@ -61,23 +64,29 @@ int uwp_main(int, char **) {
     // Keep the B button for the game instead of letting the shell navigate back.
     SDL_SetHint(SDL_HINT_WINRT_HANDLE_BACK_BUTTON, "1");
 
-    pspweb::uwp::GameFiles files;
-    if (!pspweb::uwp::run_launcher(config, files)) {
+    pspweb::uwp::GameImage game;
+    if (!pspweb::uwp::run_launcher(config, game)) {
         std::fprintf(stderr, "[uwp] launcher closed without starting the game\n");
         return 0;
     }
 
     std::error_code ignored;
-    std::string memstick = config.local + "\\ms0";
+    std::string eboot = pspweb::uwp::locate_eboot(config);
+    std::string disc = config.local + "\\disc", memstick = config.local + "\\ms0";
     std::filesystem::create_directories(std::filesystem::path(memstick), ignored);
-    // Raw UMD sector reads (NCAA's disc streaming) go to this image.
-    if (!files.iso.empty()) _putenv_s("PSPWEB_ISO", files.iso.c_str());
-    std::fprintf(stderr, "[uwp] eboot=%s disc=%s iso=%s saves=%s\n", files.eboot.c_str(), files.disc.c_str(),
-                 files.iso.c_str(), memstick.c_str());
-
+    std::filesystem::create_directories(std::filesystem::path(disc), ignored);
     std::string exe = "pspweb", disc_flag = "--disc", ms_flag = "--ms", realtime_flag = "--realtime", one = "1";
-    std::vector<char *> argv{exe.data(), files.eboot.data(), disc_flag.data(), files.disc.data(),
-                             ms_flag.data(), memstick.data(), realtime_flag.data(), one.data(), nullptr};
+    std::vector<char *> argv{exe.data(), eboot.data(), disc_flag.data(), disc.data(), ms_flag.data(),
+                             memstick.data(), realtime_flag.data(), one.data()};
+    // The disc is read in place from the image through webfs (raw UMD reads included).
+    std::string webfs_flag = "--webfs", manifest;
+    if (game.image) {
+        manifest = pspweb::uwp::serve_game(game, config.local);
+        argv.push_back(webfs_flag.data());
+        argv.push_back(manifest.data());
+    }
+    std::fprintf(stderr, "[uwp] eboot=%s image=%s saves=%s\n", eboot.c_str(), game.path.c_str(), memstick.c_str());
+    argv.push_back(nullptr);
     const int result = pspweb_main(static_cast<int>(argv.size()) - 1, argv.data());
     std::fprintf(stderr, "[uwp] exited with %d\n", result);
     return result;

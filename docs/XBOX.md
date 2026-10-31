@@ -4,7 +4,8 @@ This fork adds an experimental UWP build of the native SDL player so the
 recompiled game can be sideloaded on an Xbox One / One S / One X (or Series)
 in **Developer Mode**, or installed on a Windows 10/11 PC.
 
-Status: experimental. The UWP app runs the native player with the CPU
+Status: experimental. The UWP app opens on a start screen, reads your game
+file (ISO, CSO or CHD) in place and runs the native player with the CPU
 (software) GE renderer and SDL2's WinRT backend for the window, Xbox
 controller and audio. The ANGLE (GLES over Direct3D 11) libraries are linked
 for the GL renderer, which is not enabled in the SDL player yet. Expect low
@@ -80,27 +81,34 @@ cd NCAA-10-uwp-psp-
 To install on a Windows PC instead, double-click `PSPRecompUWP.cer`, install it
 to *Local Machine > Trusted People*, then double-click the `.msix`.
 
-## Start screen and importing your disc
+## Where to put the game file
 
-The app opens on a start screen (your cover when the package was built with
-one) with three choices:
+Copy your NCAA Football 10 game file, as **.iso**, **.cso** (CISO v1) or
+**.chd** (`chdman createdvd`; `createcd` also works), to one of these places.
+The app checks them in this order and uses the first file whose disc ID is
+ULUS10440:
 
-- **Play** starts the game once a disc is available.
-- **Choose ISO file** opens the system file picker; pick your `.iso`.
-- **Find ISO on USB drive** lists the `.iso` files in the top two folder
-  levels of every connected USB drive.
+1. **Development Files** (the default): Device Portal > File explorer >
+   *DevelopmentFiles*, either directly or in a subfolder such as
+   `DevelopmentFiles\NCAA10\`.
+2. **LocalState**: Device Portal > File explorer > *LocalAppData* >
+   the app's package > *LocalState*.
+3. **A USB drive**: the root of the drive or one folder down.
 
-Importing copies the image into the app's storage (`LocalState\game\disc.iso`),
-extracts it to `LocalState\game\disc` and checks the disc ID (ULUS10440 for
-NCAA Football 10). Allow several minutes and about twice the ISO size in free
-space. You only import once; later launches go straight to **Play**. The USB
-drive must use exFAT or NTFS for images over 4 GB (NCAA's ISO is smaller, so
-FAT32 also works).
+The file is read in place, nothing is copied or extracted. The start screen
+shows your cover with either the message *"Put your NCAA Football 10 PSP game
+file (.iso, .cso or .chd) in Development Files (the default), in LocalState,
+or on a USB drive, then press A"* or which file it found; press **A** to
+play (or to search again). Files that are a different game or unreadable are
+listed under the message.
 
-The package itself carries the game code and your decrypted `EBOOT.BIN` but
-not the disc, which keeps it small. Build with `-PackDisc` (or the workflow's
-*pack_disc* option) to put the disc in the package instead and skip the
-import.
+Reading Development Files and USB drives uses the `broadFileSystemAccess`
+capability, which sideloaded Dev Mode apps may declare. On a Windows PC, allow
+the app under Settings > Privacy > File system.
+
+The package carries the game code and your decrypted `EBOOT.BIN`, not the
+disc. `-PackDisc` (or the workflow's *pack_disc* option) puts your `.iso` in
+the package as a last-resort location.
 
 ## Controls
 
@@ -118,5 +126,5 @@ Through Device Portal's **File explorer**, under
 
 - `pspweb.log` is the log of the last run. Read it when something goes wrong.
 - `ms0\` holds your saves.
-- `game\` holds the imported disc (`disc.iso` and `disc\`). A
-  `game\EBOOT.BIN` placed here overrides the packaged executable.
+- `disc.manifest` is the file list the app built from your game file.
+- A `game\EBOOT.BIN` placed here overrides the packaged executable.

@@ -65,6 +65,7 @@ std::string normalize(const std::string &path) {
 // Native test path: "fetch" from a local directory, completing on poll so the
 // asynchronous wait logic is exercised exactly like in the browser.
 std::vector<std::pair<std::uint32_t, std::vector<std::uint8_t>>> g_native_completions;
+NativeDiscReader g_native_reader;
 #endif
 
 } // namespace
@@ -164,7 +165,9 @@ void WebFs::fetch(const WebFile &file, std::uint64_t offset, std::uint32_t lengt
         pspweb_js_fetch(request, url.c_str(), static_cast<double>(start), static_cast<double>(end));
 #else
         std::vector<std::uint8_t> bytes(static_cast<std::size_t>(end - start + 1u));
-        if (std::FILE *f = std::fopen(url.c_str(), "rb")) {
+        if (g_native_reader) {
+            if (!g_native_reader(file.path, start, bytes.data(), bytes.size())) bytes.clear();
+        } else if (std::FILE *f = std::fopen(url.c_str(), "rb")) {
             std::fseek(f, static_cast<long>(start), SEEK_SET);
             bytes.resize(std::fread(bytes.data(), 1u, bytes.size(), f));
             std::fclose(f);
@@ -227,6 +230,8 @@ void WebFs::evict() {
 }
 
 #if !defined(__EMSCRIPTEN__)
+void set_native_disc_reader(NativeDiscReader reader) { g_native_reader = std::move(reader); }
+
 void webfs_native_poll(WebFs &fs) {
     auto completions = std::move(g_native_completions);
     g_native_completions.clear();

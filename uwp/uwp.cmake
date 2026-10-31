@@ -6,6 +6,14 @@
 #     imported targets under the names the profile links against;
 #   * renames the native main() to pspweb_main() and adds uwp/uwp_main.cpp,
 #     whose wWinMain hands the CoreWindow to SDL and then runs pspweb_main.
+# CMAKE_PROJECT_INCLUDE runs for every project() call, including libchdr's
+# and its dependencies' below; only the first (PSPRecomp) one sets things up.
+get_property(pspweb_uwp_included GLOBAL PROPERTY PSPWEB_UWP_INCLUDED)
+if(pspweb_uwp_included)
+    return()
+endif()
+set_property(GLOBAL PROPERTY PSPWEB_UWP_INCLUDED TRUE)
+
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
     message(FATAL_ERROR "uwp.cmake expects -DCMAKE_SYSTEM_NAME=WindowsStore")
 endif()
@@ -16,8 +24,9 @@ set(PSPWEB_UWP_SDL2_LIB "" CACHE FILEPATH "SDL2 import library built for UWP")
 set(PSPWEB_UWP_ANGLE_INCLUDE "" CACHE PATH "ANGLE include directory (EGL/, GLES2/, GLES3/, KHR/)")
 set(PSPWEB_UWP_EGL_LIB "" CACHE FILEPATH "ANGLE libEGL import library for UWP")
 set(PSPWEB_UWP_GLES_LIB "" CACHE FILEPATH "ANGLE libGLESv2 import library for UWP")
-set(PSPWEB_UWP_CPPWINRT_INCLUDE "" CACHE PATH "Windows SDK cppwinrt include directory (optional)")
-foreach(var PSPWEB_UWP_SDL2_INCLUDE PSPWEB_UWP_SDL2_LIB PSPWEB_UWP_ANGLE_INCLUDE PSPWEB_UWP_EGL_LIB PSPWEB_UWP_GLES_LIB)
+set(PSPWEB_UWP_LIBCHDR_DIR "" CACHE PATH "libchdr source tree (CHD support for the disc reader)")
+foreach(var PSPWEB_UWP_SDL2_INCLUDE PSPWEB_UWP_SDL2_LIB PSPWEB_UWP_ANGLE_INCLUDE PSPWEB_UWP_EGL_LIB PSPWEB_UWP_GLES_LIB
+        PSPWEB_UWP_LIBCHDR_DIR)
     if(NOT EXISTS "${${var}}")
         message(FATAL_ERROR "${var} is not set or missing: '${${var}}'")
     endif()
@@ -42,6 +51,13 @@ set_target_properties(SDL2::SDL2 PROPERTIES IMPORTED_LOCATION "${PSPWEB_UWP_SDL2
 # find_package(SDL2 REQUIRED) in the profile resolves to uwp/cmake/SDL2Config.cmake.
 set(SDL2_DIR "${PSPWEB_UWP_DIR}/cmake" CACHE PATH "" FORCE)
 
+# libchdr (with its bundled miniz, LZMA and zstd) for .chd images; miniz also
+# inflates .cso blocks.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(CHDR_WANT_TESTS OFF CACHE BOOL "" FORCE)
+set(INSTALL_STATIC_LIBS OFF CACHE BOOL "" FORCE)
+add_subdirectory("${PSPWEB_UWP_LIBCHDR_DIR}" "${CMAKE_BINARY_DIR}/libchdr" EXCLUDE_FROM_ALL)
+
 function(pspweb_uwp_finish)
     if(NOT TARGET pspweb)
         message(FATAL_ERROR "uwp.cmake: the profile did not define the pspweb target")
@@ -57,11 +73,9 @@ function(pspweb_uwp_finish)
         PROPERTIES COMPILE_DEFINITIONS "main=pspweb_main"
                    COMPILE_OPTIONS "/FI${PSPWEB_UWP_DIR}/uwp_compat.hpp")
     target_sources(pspweb PRIVATE "${PSPWEB_UWP_DIR}/uwp_main.cpp" "${PSPWEB_UWP_DIR}/launcher.cpp"
-        "${PSPWEB_UWP_DIR}/iso9660.cpp")
-    # The launcher's file picker and USB scan use C++/WinRT from the Windows SDK.
-    if(PSPWEB_UWP_CPPWINRT_INCLUDE)
-        target_include_directories(pspweb PRIVATE "${PSPWEB_UWP_CPPWINRT_INCLUDE}")
-    endif()
+        "${PSPWEB_UWP_DIR}/game_locator.cpp" "${PSPWEB_UWP_DIR}/disc_image.cpp")
+    target_include_directories(pspweb PRIVATE "${profile_dir}/host" "${PSPWEB_UWP_LIBCHDR_DIR}/deps/miniz-3.1.2")
+    target_link_libraries(pspweb PRIVATE chdr-static miniz)
     target_compile_definitions(pspweb PRIVATE PSPWEB_UWP=1)
     # Plain ISO C++ (no C++/CX); the WinRT parts live inside SDL.
     set_target_properties(pspweb PROPERTIES VS_WINRT_COMPONENT OFF WIN32_EXECUTABLE ON)

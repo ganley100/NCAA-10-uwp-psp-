@@ -103,6 +103,15 @@ if (-not $EglLib -or -not $GlesLib -or -not $AngleInclude) {
 }
 $AngleDlls = Get-ChildItem $AngleDir -Recurse -Filter *.dll | Where-Object { $_.FullName -match 'x64' }
 
+# --- libchdr (CHD images; its miniz also inflates CSO) -------------------------
+$LibchdrCommit = "47d794151b2b64f6aba60304e6480f4f5a2bc24b"
+$LibchdrDir = Join-Path $Deps "libchdr-$LibchdrCommit"
+if (-not (Test-Path (Join-Path $LibchdrDir "CMakeLists.txt"))) {
+    Write-Host "== libchdr $LibchdrCommit"
+    Invoke-Checked git @("clone", "--quiet", "https://github.com/rtissera/libchdr.git", $LibchdrDir)
+    Invoke-Checked git @("-C", $LibchdrDir, "checkout", "--quiet", $LibchdrCommit)
+}
+
 # --- Game input and AOT translation -------------------------------------------
 $GameRoot = Join-Path $Root "games/$Game/root"
 $Generated = Join-Path $Root "profile/generated/$Game"
@@ -132,8 +141,6 @@ if ($Game -eq "smoke") {
         Copy-Item $packaged $Target
     }
     Invoke-Checked $Python @("-I", (Join-Path $Root "scripts/verify_ncaa10.py"), $GameRoot)
-    # The raw image only travels in -PackDisc packages; otherwise the console imports it.
-    if ($PackDisc) { Invoke-Checked $Python @("-I", (Join-Path $Root "scripts/prepare_ncaa_disc.py"), $Iso, $Disc) }
     Write-Host "== MIPS to C++"
     New-Item -ItemType Directory -Force -Path $Generated | Out-Null
     Invoke-Checked $Recomp @($Target, "--auto", $Generated, "0x08804000", "0x4000")
@@ -153,7 +160,7 @@ Invoke-Checked cmake @("-S", $Framework, "-B", $Cmake, "-G", "Visual Studio 17 2
     "-DPSPWEB_UWP_SDL2_INCLUDE=$(Join-Path $SdlDir 'include')", "-DPSPWEB_UWP_SDL2_LIB=$($SdlLib.FullName)",
     "-DPSPWEB_UWP_ANGLE_INCLUDE=$AngleInclude", "-DPSPWEB_UWP_EGL_LIB=$($EglLib.FullName)",
     "-DPSPWEB_UWP_GLES_LIB=$($GlesLib.FullName)",
-    "-DPSPWEB_UWP_CPPWINRT_INCLUDE=${env:ProgramFiles(x86)}\Windows Kits\10\Include\$Sdk\cppwinrt")
+    "-DPSPWEB_UWP_LIBCHDR_DIR=$LibchdrDir")
 Write-Host "== building (generated code can take a long time)"
 Invoke-Checked cmake @("--build", $Cmake, "--config", "Release", "--target", "pspweb", "--", "/nologo", "/v:minimal")
 $Exe = Get-ChildItem $Cmake -Recurse -Filter "pspweb_$Game.exe" | Where-Object { $_.FullName -match 'Release' -and $_.FullName -notmatch 'AppX' } | Select-Object -First 1
@@ -177,9 +184,9 @@ if ($Cover) {
 Write-Host "== start screen images"
 Invoke-Checked $Python $LauncherArgs
 Copy-Item (Join-Path $GameRoot "EBOOT.BIN") (Join-Path $Layout "game/EBOOT.BIN")
-if ($PackDisc) {
-    Write-Host "== packing the disc into the package"
-    Copy-Item -Recurse (Join-Path $GameRoot "disc") (Join-Path $Layout "game/disc")
+if ($PackDisc -and $Iso) {
+    Write-Host "== packing the disc image into the package"
+    Copy-Item $Iso (Join-Path $Layout "game/$([System.IO.Path]::GetFileName($Iso))")
 }
 
 # The UWP C++ runtime framework package (vcruntime140_app etc.).

@@ -6,6 +6,7 @@
 // A read that misses the cache completes asynchronously, which the kernel
 // models as the calling PSP thread waiting on a slow UMD.
 
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -65,5 +66,14 @@ private:
     std::uint64_t cached_bytes_{};
     std::uint64_t fetched_bytes_{};
 };
+
+#if !defined(__EMSCRIPTEN__)
+// Native data source for disc files.  When set, fetches read through it
+// instead of opening <url_prefix>/<path>; the UWP build uses it to serve files
+// straight out of an ISO, CSO or CHD image (uwp/game_locator.cpp).
+using NativeDiscReader =
+    std::function<bool(const std::string &path, std::uint64_t offset, std::uint8_t *dst, std::size_t length)>;
+void set_native_disc_reader(NativeDiscReader reader);
+#endif
 
 } // namespace pspweb

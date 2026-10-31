@@ -1,30 +1,17 @@
 #include "launcher.hpp"
 
-#include "iso9660.hpp"
-
 #include <SDL.h>
 
-#include <winrt/Windows.Foundation.h>
-#include <winrt/Windows.Foundation.Collections.h>
-#include <winrt/Windows.Storage.FileProperties.h>
-#include <winrt/Windows.Storage.Pickers.h>
-#include <winrt/Windows.Storage.h>
-
 #include <algorithm>
-#include <atomic>
-#include <cctype>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <thread>
 #include <vector>
 
 namespace pspweb::uwp {
 namespace {
 
 namespace fs = std::filesystem;
-namespace wf = winrt::Windows::Foundation;
-namespace ws = winrt::Windows::Storage;
 
 constexpr int kWidth = 1280, kHeight = 720;
 constexpr float kPanelX = 760.0f, kTextX = 790.0f, kTextWidth = 460.0f;
@@ -35,11 +22,6 @@ fs::path utf8_path(const std::string &text) { return fs::path(std::u8string(text
 std::string utf8(const fs::path &path) {
     const auto text = path.u8string();
     return std::string(text.begin(), text.end());
-}
-
-bool ends_with_iso(std::string name) {
-    std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return name.size() > 4u && name.compare(name.size() - 4u, 4u, ".iso") == 0;
 }
 
 struct Input {
@@ -258,207 +240,61 @@ private:
     int stick_zone_{};
 };
 
-// Waits for a WinRT async operation on the UI thread without blocking it:
-// SDL keeps pumping the CoreWindow dispatcher while the screen animates.
-template <typename Operation>
-auto wait(Operation const &operation, Ui &ui, const std::string &line) {
-    const Uint32 start = SDL_GetTicks();
-    while (operation.Status() == wf::AsyncStatus::Started) {
-        const unsigned seconds = (SDL_GetTicks() - start) / 1000u;
-        ui.busy(line, seconds > 1u ? std::to_string(seconds) + " s" : "", -1.0);
-    }
-    return operation.GetResults();
-}
-
-std::string describe(const winrt::hresult_error &error) {
-    const std::string message = winrt::to_string(error.message());
-    return message.empty() ? "Windows error " + std::to_string(static_cast<std::int32_t>(error.code())) : message;
-}
-
-// Copies the chosen image into LocalState\game, extracts it next to it and
-// checks the disc ID.  Returns an empty string on success.
-std::string import_iso(ws::StorageFile const &file, const LauncherConfig &config, Ui &ui) {
-    const fs::path game = utf8_path(config.local) / "game";
-    const fs::path staging = game / "disc.new", image = game / "import.iso";
-    std::error_code ignored;
-    fs::create_directories(game, ignored);
-    const auto folder = wait(ws::ApplicationData::Current().LocalFolder().CreateFolderAsync(
-                                 L"game", ws::CreationCollisionOption::OpenIfExists), ui, "Preparing...");
-    const std::uint64_t size = wait(file.GetBasicPropertiesAsync(), ui, "Preparing...").Size();
-    char gigabytes[32];
-    std::snprintf(gigabytes, sizeof gigabytes, "%.2f GB", static_cast<double>(size) / 1e9);
-    wait(file.CopyAsync(folder, L"import.iso", ws::NameCollisionOption::ReplaceExisting), ui,
-         "Copying " + winrt::to_string(file.Name()) + " (" + gigabytes + "). This takes a few minutes.");
-
-    fs::remove_all(staging, ignored);
-    ExtractProgress progress;
-    std::atomic<bool> finished{false};
-    std::string error;
-    std::thread worker([&] {
-        error = extract_iso(image, staging, progress);
-        finished = true;
-    });
-    while (!finished) {
-        const double total = static_cast<double>(progress.total.load());
-        ui.busy("Extracting the disc...", "", total > 0.0 ? progress.done.load() / total : -1.0);
-    }
-    worker.join();
-    auto discard = [&] {
-        fs::remove_all(staging, ignored);
-        fs::remove(image, ignored);
-    };
-    if (!error.empty()) {
-        discard();
-        return "Import failed: " + error + ".";
-    }
-    const std::string id = read_disc_id(staging);
-    if (!config.disc_id.empty() && id != config.disc_id) {
-        discard();
-        return (id.empty() ? std::string("That is not a PSP game disc") : "That disc is " + id) +
-               "; this build needs " + config.disc_id + ".";
-    }
-    fs::remove_all(game / "disc", ignored);
-    fs::rename(staging, game / "disc");
-    fs::remove(game / "disc.iso", ignored);
-    fs::rename(image, game / "disc.iso");
-    return {};
-}
-
-ws::StorageFile pick_iso(Ui &ui) {
-    ws::Pickers::FileOpenPicker picker;
-    picker.ViewMode(ws::Pickers::PickerViewMode::List);
-    picker.FileTypeFilter().Append(L".iso");
-    return wait(picker.PickSingleFileAsync(), ui, "Choose your disc image (.iso) in the file picker.");
-}
-
-std::vector<ws::StorageFile> scan_usb(Ui &ui) {
-    std::vector<ws::StorageFile> found;
-    auto collect = [&](ws::StorageFolder const &folder) {
-        for (auto const &file : wait(folder.GetFilesAsync(), ui, "Searching USB drives..."))
-            if (ends_with_iso(winrt::to_string(file.Name()))) found.push_back(file);
-    };
-    for (auto const &drive : wait(ws::KnownFolders::RemovableDevices().GetFoldersAsync(), ui, "Searching USB drives...")) {
-        collect(drive);
-        for (auto const &folder : wait(drive.GetFoldersAsync(), ui, "Searching USB drives...")) collect(folder);
-    }
-    return found;
-}
-
-// Lets the player choose one of several images; returns -1 when cancelled.
-int choose(Ui &ui, const std::vector<std::string> &names) {
-    int selected = 0;
-    for (;;) {
-        const Input input = ui.poll();
-        if (input.quit || input.back) return -1;
-        if (input.accept) return selected;
-        if (input.up) selected = (selected + static_cast<int>(names.size()) - 1) % static_cast<int>(names.size());
-        if (input.down) selected = (selected + 1) % static_cast<int>(names.size());
-        ui.begin();
-        ui.text(kTextX, 190.0f, "Choose a disc image", 0.46f, kWhite);
-        const int first = std::max(0, std::min(selected - 3, static_cast<int>(names.size()) - 7));
-        for (int i = first; i < std::min<int>(first + 7, static_cast<int>(names.size())); ++i)
-            ui.item(270.0f + (i - first) * 56.0f, names[static_cast<std::size_t>(i)], i == selected, true);
-        ui.footer("A choose   B back");
-        ui.present();
-    }
-}
-
 } // namespace
 
-GameFiles locate_game(const LauncherConfig &config) {
+std::string locate_eboot(const LauncherConfig &config) {
     std::error_code ignored;
-    const fs::path local = utf8_path(config.local) / "game", installed = utf8_path(config.installed) / "game";
-    GameFiles files;
-    const fs::path eboot = fs::exists(local / "EBOOT.BIN", ignored) ? local / "EBOOT.BIN" : installed / "EBOOT.BIN";
-    const fs::path disc = fs::exists(local / "disc" / "PSP_GAME", ignored) ? local / "disc" : installed / "disc";
-    fs::path iso;
-    if (fs::exists(local / "disc.iso", ignored) && disc == local / "disc") iso = local / "disc.iso";
-    else if (fs::exists(disc / "__umd.iso", ignored)) iso = disc / "__umd.iso";
-    files.eboot = utf8(eboot);
-    files.disc = utf8(disc);
-    files.iso = iso.empty() ? std::string() : utf8(iso);
-    if (!fs::exists(eboot, ignored)) {
-        files.problem = "The game executable is missing from this package. Rebuild it with your EBOOT.BIN.";
-    } else if (!config.disc_id.empty()) {
-        const std::string id = read_disc_id(disc);
-        if (id.empty() || iso.empty())
-            files.problem = "Import your " + config.title + " disc image (" + config.disc_id +
-                            ", .iso) from a USB drive to play.";
-        else if (id != config.disc_id)
-            files.problem = "The imported disc is " + id + ", but this build needs " + config.disc_id + ".";
-    }
-    files.ready = files.problem.empty();
-    return files;
+    const fs::path local = utf8_path(config.local) / "game" / "EBOOT.BIN";
+    return utf8(fs::exists(local, ignored) ? local : utf8_path(config.installed) / "game" / "EBOOT.BIN");
 }
 
-bool run_launcher(const LauncherConfig &config, GameFiles &files) {
+bool run_launcher(const LauncherConfig &config, GameImage &game) {
     Ui ui;
-    if (!ui.open(config.installed, config.title)) {
-        std::fprintf(stderr, "[launcher] SDL unavailable: %s\n", SDL_GetError());
-        ui.close();
-        files = locate_game(config);
-        return files.ready;
-    }
-    files = locate_game(config);
-    std::string message = files.ready ? "Ready to play." : files.problem;
-    bool message_is_error = !files.ready;
-    int selected = files.ready ? 0 : 1;
-    const std::vector<std::string> items{"Play", "Choose ISO file", "Find ISO on USB drive"};
+    const bool have_ui = ui.open(config.installed, config.title);
+    if (!have_ui) std::fprintf(stderr, "[launcher] SDL unavailable: %s\n", SDL_GetError());
+    const auto places = search_places(config.installed, config.local);
+    const std::string instructions =
+        "Put your " + config.title + " PSP game file (.iso, .cso or .chd) in Development Files "
+        "(the default), in LocalState, or on a USB drive, then press A.";
+    std::error_code ignored;
     for (;;) {
-        const Input input = ui.poll();
-        if (input.quit) break;
-        if (input.up) selected = (selected + 2) % 3;
-        if (input.down) selected = (selected + 1) % 3;
-        if (input.accept) {
-            if (selected == 0 && files.ready) {
+        // Search (again).
+        if (have_ui) ui.busy("Looking for " + config.title + "...", "", -1.0);
+        std::vector<std::string> notes;
+        std::string problem;
+        game = GameImage{};
+        if (!fs::exists(utf8_path(locate_eboot(config)), ignored))
+            problem = "The game executable (EBOOT.BIN) is missing from this package. Rebuild it with yours.";
+        else if (config.needs_disc && !find_game(places, config.disc_id, game, notes))
+            problem = instructions;
+        const bool ready = problem.empty();
+        if (ready) std::fprintf(stderr, "[launcher] found %s in %s\n", game.path.c_str(), game.location.c_str());
+        else std::fprintf(stderr, "[launcher] %s\n", problem.c_str());
+        for (const auto &note : notes) std::fprintf(stderr, "[launcher] skipped %s\n", note.c_str());
+        if (!have_ui) return ready;
+
+        std::string detail;
+        if (ready && config.needs_disc) detail = "Found " + game.name + " in " + game.location + ".";
+        for (const auto &note : notes) detail += (detail.empty() ? "" : "\n") + note;
+        for (;;) {
+            const Input input = ui.poll();
+            if (input.quit) {
+                ui.close();
+                return false;
+            }
+            if (input.accept && ready) {
                 ui.close();
                 return true;
             }
-            if (selected == 0) {
-                message = files.problem;
-                message_is_error = true;
-            } else {
-                try {
-                    ws::StorageFile chosen{nullptr};
-                    if (selected == 1) {
-                        chosen = pick_iso(ui);
-                        if (!chosen) message = "No file chosen.";
-                    } else {
-                        const auto found = scan_usb(ui);
-                        std::vector<std::string> names;
-                        for (auto const &file : found) names.push_back(winrt::to_string(file.Path()));
-                        if (found.empty()) {
-                            message = "No .iso files found in the top two folder levels of any USB drive.";
-                        } else {
-                            const int index = found.size() == 1u ? 0 : choose(ui, names);
-                            if (index >= 0) chosen = found[static_cast<std::size_t>(index)];
-                            else message = "Cancelled.";
-                        }
-                    }
-                    if (chosen) {
-                        const std::string error = import_iso(chosen, config, ui);
-                        message = error.empty() ? "Disc imported." : error;
-                    }
-                } catch (const winrt::hresult_error &error) {
-                    message = "Could not read the drive: " + describe(error);
-                } catch (const std::exception &error) {
-                    message = std::string("Import failed: ") + error.what();
-                }
-                files = locate_game(config);
-                if (files.ready && message == "Disc imported.") message += " Ready to play.";
-                message_is_error = !files.ready;
-                if (files.ready) selected = 0;
-            }
+            if (input.accept) break; // search again
+            ui.begin();
+            float y = ui.paragraph(190.0f, ready ? "Ready to play." : problem, 0.42f, ready ? kWhite : kRed);
+            ui.paragraph(y + 16.0f, detail, 0.34f, kGrey);
+            ui.item(560.0f, ready ? "Play" : "Search again", true, true);
+            ui.footer(ready ? "A play" : "A search again");
+            ui.present();
         }
-        ui.begin();
-        ui.paragraph(190.0f, message, 0.42f, message_is_error ? kRed : kGrey);
-        for (int i = 0; i < 3; ++i)
-            ui.item(380.0f + i * 70.0f, items[static_cast<std::size_t>(i)], i == selected, i != 0 || files.ready);
-        ui.footer("A select   Up/Down move");
-        ui.present();
     }
-    ui.close();
-    return false;
 }
 
 } // namespace pspweb::uwp
